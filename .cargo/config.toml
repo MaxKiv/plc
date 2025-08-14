@@ -1,0 +1,42 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = [
+  "probe-rs",
+  "run",
+  "--chip",
+  "STM32F103C6",
+  "--log-format",
+  "{t} {L} {s}",
+]
+
+rustflags = [
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-Tdefmt.x",
+]
+
+[target.thumbv7m-none-eabi]
+rustflags = ["-C", "link-arg=-Tstm32f103c6.x"]
+
+[target.thumbv7em-none-eabihf]
+rustflags = ["-C", "link-arg=-Tstm32g474re.x"]
+
+[build]
+target = "thumbv7m-none-eabi"
+# target = "thumbv7em-none-eabihf"
+
+[env]
+DEFMT_LOG = "debug"
+
+[profile.release]
+# symbols are nice and they don't increase the size on Flash
+debug = true
+# or "z"
+opt-level = "s"
+
+# don't optimize the `cortex-m-rt` crate
+[profile.dev.package.cortex-m-rt] # +
+opt-level = 0 # +
+
+# but do optimize all the other dependencies
+[profile.dev.package."*"]
+codegen-units = 1 # better optimizations
+opt-level = "z"

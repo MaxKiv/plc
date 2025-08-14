@@ -1,0 +1,12 @@
+[toolchain]
+channel = "stable"
+# Keep components commented unless needed
+components = ["llvm-tools-preview", "rustfmt", "clippy"]
+
+# Both targets: Cortex-M3 (F1 series) and Cortex-M4F (G4 series)
+targets = [
+    "thumbv7m-none-eabi",     # For STM32F103C8
+    "thumbv7em-none-eabihf"   # For STM32G474RE
+]
+
+profile = "minimal"
