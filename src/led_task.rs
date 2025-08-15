@@ -1,46 +1,64 @@
-use embassy_executor::task;
+use defmt::*;
 use embassy_stm32::gpio::Output;
-use embassy_time::Timer;
-use embedded_hal::digital::{OutputPin, StatefulOutputPin};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Receiver};
+use embassy_time::{Duration, Ticker, Timer};
 
-#[derive(PartialEq, Clone, Copy)]
-enum AppState {
-    StandBy,
-    Running,
-    Fault,
-}
+use crate::AppState;
 
-impl AppState {
-    fn get_led_blink_period(&self) -> u64 {
-        match self {
-            AppState::StandBy => 500,
-            AppState::Running => 250,
-            AppState::Fault => u64::MAX,
-        }
+const LED_TASK_TICK_PERIOD: Duration = Duration::from_millis(100);
+
+fn get_led_blink_period(app_state: AppState) -> Duration {
+    match app_state {
+        AppState::StandBy => Duration::from_millis(500),
+        AppState::Running => Duration::from_millis(250),
+        AppState::Fault => Duration::from_millis(u64::MAX),
     }
 }
 
 #[embassy_executor::task]
-pub async fn blink_led(mut led: Output<'static>) {
-    use AppState::*;
+pub async fn blink_led(
+    mut led: Output<'static>,
+    mut appstate_receiver: Receiver<'static, Cs, AppState, 1>,
+) {
+    info!("starting LED task");
 
-    let led_task_period_ms = 100; // 10Hz
-    let mut old_app_state = StandBy;
-    let mut new_app_state = Running;
-    let mut current_led_period_ms = new_app_state.get_led_blink_period();
+    // Task timekeeper
+    let mut ticker = Ticker::every(LED_TASK_TICK_PERIOD);
+
+    let mut old_app_state = AppState::default();
+    let mut current_app_state = AppState::default();
+    let mut remaining_task_period = Some(get_led_blink_period(current_app_state));
+
+    info!("starting LED loop");
 
     loop {
-        if new_app_state != old_app_state {
-            current_led_period_ms = 0;
+        // Check if there is a new application state
+        if let Some(new_app_state) = appstate_receiver.try_changed() {
+            debug!(
+                "LED: New app state detected - switched to {:?} - reset LED cycle",
+                current_app_state
+            );
+
+            remaining_task_period = None;
+            current_app_state = new_app_state;
         }
 
-        if current_led_period_ms.saturating_sub(led_task_period_ms) == 0 {
+        if let Some(remaining) = remaining_task_period {
+            remaining_task_period = remaining.checked_sub(LED_TASK_TICK_PERIOD);
+        }
+
+        debug!("LED: remaining led period {}", remaining_task_period);
+
+        if remaining_task_period.is_none() {
+            debug!("LED: current led cycle finished: toggling LED");
             led.toggle();
-            current_led_period_ms = new_app_state.get_led_blink_period();
+            remaining_task_period = Some(get_led_blink_period(current_app_state));
+            debug!("LED: new remaining led period: {}", remaining_task_period);
         }
 
-        old_app_state = new_app_state;
+        old_app_state = current_app_state;
 
-        Timer::after_millis(led_task_period_ms).await;
+        debug!("LED: looping");
+        ticker.next().await;
     }
 }

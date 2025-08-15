@@ -1,4 +1,4 @@
-[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+[target.thumbv7m-none-eabi]
 runner = [
   "probe-rs",
   "run",
@@ -9,19 +9,31 @@ runner = [
 ]
 
 rustflags = [
+  "-C", "link-arg=-Tstm32f103c6.x",
   "-C", "link-arg=-Tlink.x",
   "-C", "link-arg=-Tdefmt.x",
 ]
 
-[target.thumbv7m-none-eabi]
-rustflags = ["-C", "link-arg=-Tstm32f103c6.x"]
-
 [target.thumbv7em-none-eabihf]
-rustflags = ["-C", "link-arg=-Tstm32g474re.x"]
+runner = [
+  "probe-rs",
+  "run",
+  "--chip",
+  "STM32G474RE",
+  "--log-format",
+  "{t} {L} {s}",
+]
+
+rustflags = [
+  "-C", "link-arg=-Tstm32g474re.x",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-Tdefmt.x",
+  "-C", "link-arg=--nmagic",
+]
 
 [build]
-target = "thumbv7m-none-eabi"
-# target = "thumbv7em-none-eabihf"
+# target = "thumbv7m-none-eabi"
+target = "thumbv7em-none-eabihf"
 
 [env]
 DEFMT_LOG = "debug"
@@ -31,6 +43,11 @@ DEFMT_LOG = "debug"
 debug = true
 # or "z"
 opt-level = "s"
+lto = "fat"
+
+[profile.debug]
+opt-level = "s"
+lto = "fat"
 
 # don't optimize the `cortex-m-rt` crate
 [profile.dev.package.cortex-m-rt] # +
