@@ -15,7 +15,7 @@
         ],
         "runToMain": true,
         // "svdFile": "${workspaceFolder}/STM32G4.svd", 
-        // "preLaunchTask": "cargo build",        // optional, see tasks.json
+        "preLaunchTask": "cargo build",        // optional, see tasks.json
         "postRestartCommands": [
             "monitor reset halt"
         ],

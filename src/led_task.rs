@@ -11,7 +11,7 @@ fn get_led_blink_period(app_state: AppState) -> Duration {
     match app_state {
         AppState::StandBy => Duration::from_millis(500),
         AppState::Running => Duration::from_millis(250),
-        AppState::Fault => Duration::from_millis(u64::MAX),
+        AppState::Fault => Duration::MAX,
     }
 }
 

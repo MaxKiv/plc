@@ -16,19 +16,9 @@ pub async fn control_loop(
     // Task timekeeper
     let mut ticker = Ticker::every(CONTROL_TASK_PERIOD);
 
-    let mut cnt = 0;
     let mut state = AppState::StandBy;
 
     loop {
-        cnt += 1;
-
-        if cnt == 100 {
-            state = state.next();
-            info!("CONTROL: cycling app_state to {}", state);
-
-            appstate_sender.send(state);
-        }
-
         debug!("CONTROL: looping");
         ticker.next().await;
     }

@@ -2,6 +2,7 @@
 #![no_main]
 
 mod adc_task;
+mod button_task;
 mod comms;
 mod comms_task;
 mod control_task;
@@ -46,31 +47,13 @@ static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     info!("Starting...");
-    let mut config = Config::default();
-    config.rcc.pll = None;
-    config.rcc.hsi = true;
-    config.rcc.hse = None;
-    config.rcc.sys = Sysclk::HSI;
-    config.rcc.hsi48 = Some(Hsi48Config {
-        sync_from_usb: false,
-    });
-    config.rcc.ahb_pre = AHBPrescaler::DIV1;
-    config.rcc.apb1_pre = APBPrescaler::DIV1;
-    config.rcc.apb2_pre = APBPrescaler::DIV1;
-    config.rcc.low_power_run = false;
-    config.rcc.ls = LsConfig {
-        rtc: RtcClockSource::LSI,
-        lsi: true,
-        lse: None,
-    };
-    config.rcc.boost = false;
-    config.rcc.mux.rtcsel = mux::Rtcsel::LSI;
-    config.rcc.mux.adc12sel = mux::Adcsel::SYS;
-    config.rcc.mux.adc345sel = mux::Adcsel::SYS;
-    config.rcc.mux.clk48sel = mux::Clk48sel::HSI48;
-    let p = embassy_stm32::init(config);
 
+    let mut config = Config::default();
+    configure_rcc(&mut config);
+
+    let p = embassy_stm32::init(config);
     info!("Default configuration applied");
+
     let hal = Hal::new(p);
     info!("Board specific HAL constructed");
 
@@ -78,6 +61,12 @@ async fn main(spawner: Spawner) {
     APPSTATE_WATCH.sender().send(AppState::StandBy);
 
     info!("Spawning tasks...");
+    spawner
+        .spawn(button_task::manage_button(
+            APPSTATE_WATCH.sender(),
+            hal.button,
+        ))
+        .unwrap();
     spawner
         .spawn(led_task::blink_led(
             hal.led,
@@ -99,4 +88,29 @@ async fn main(spawner: Spawner) {
             APPSTATE_WATCH.sender(),
         ))
         .unwrap();
+}
+
+// Configure reset and clock control
+fn configure_rcc(config: &mut Config) {
+    config.rcc.pll = None;
+    config.rcc.hsi = true;
+    config.rcc.hse = None;
+    config.rcc.sys = Sysclk::HSI;
+    config.rcc.hsi48 = Some(Hsi48Config {
+        sync_from_usb: false,
+    });
+    config.rcc.ahb_pre = AHBPrescaler::DIV1;
+    config.rcc.apb1_pre = APBPrescaler::DIV1;
+    config.rcc.apb2_pre = APBPrescaler::DIV1;
+    config.rcc.low_power_run = false;
+    config.rcc.ls = LsConfig {
+        rtc: RtcClockSource::LSI,
+        lsi: true,
+        lse: None,
+    };
+    config.rcc.boost = false;
+    config.rcc.mux.rtcsel = mux::Rtcsel::LSI;
+    config.rcc.mux.adc12sel = mux::Adcsel::SYS;
+    config.rcc.mux.adc345sel = mux::Adcsel::SYS;
+    config.rcc.mux.clk48sel = mux::Clk48sel::HSI48;
 }

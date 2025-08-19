@@ -1,7 +1,7 @@
 use defmt::*;
 use embassy_stm32::adc::{Adc, SampleTime};
 // use embassy_stm32::dac::{Dac, DacChannel};
-use embassy_stm32::gpio::{Level, Output, Speed};
+use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
 use embassy_stm32::{Peri, Peripherals, peripherals::*};
 
 /// Concrete HAL for STM32G474RE
@@ -12,6 +12,7 @@ pub struct Hal {
     // pub dac2: Dac<'static, DAC2>,
     pub led: Output<'static>,
     pub adc_channels: AdcChannels,
+    pub button: Input<'static>,
 }
 
 pub struct AdcChannels {
@@ -51,6 +52,8 @@ impl Hal {
             channel_pulmonary_afterload_pressure: p.PB11,
         };
 
+        let button = Input::new(p.PC13, Pull::Down);
+
         Self {
             adc1,
             adc2,
@@ -58,6 +61,7 @@ impl Hal {
             // dac2,
             led,
             adc_channels,
+            button,
         }
     }
 }
