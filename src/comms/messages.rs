@@ -1,9 +1,10 @@
+use defmt::Format;
 use serde::{Deserialize, Serialize};
 use uom::si::u32::{Pressure, VolumeRate};
 
 use crate::AppState;
 
-#[derive(defmt::Format, Serialize)]
+#[derive(Format, Serialize)]
 pub struct AdcFrame {
     pub regulator_actual_pressure: u16,
     pub systemic_flow: u16,
@@ -14,7 +15,7 @@ pub struct AdcFrame {
     pub pulmonary_afterload_pressure: u16,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct Measurements {
     regulator_actual_pressure: Pressure,
     systemic_flow: VolumeRate,
@@ -25,10 +26,62 @@ pub struct Measurements {
     pulmonary_afterload_pressure: Pressure,
 }
 
-#[derive(Serialize)]
+impl Format for Measurements {
+    fn format(&self, fmt: defmt::Formatter) {
+        use uom::si::pressure::millimeter_of_mercury;
+        use uom::si::volume_rate::liter_per_minute;
+
+        defmt::write!(
+            fmt,
+            "Measurement(reg: {}, sf: {}, pf: {}, spp: {}, sap: {}, ppp: {}, pap: {}",
+            self.regulator_actual_pressure
+                .get::<millimeter_of_mercury>(),
+            self.systemic_flow.get::<liter_per_minute>(),
+            self.systemic_flow.get::<liter_per_minute>(),
+            self.systemic_preload_pressure
+                .get::<millimeter_of_mercury>(),
+            self.systemic_afterload_pressure
+                .get::<millimeter_of_mercury>(),
+            self.pulmonary_preload_pressure
+                .get::<millimeter_of_mercury>(),
+            self.pulmonary_afterload_pressure
+                .get::<millimeter_of_mercury>(),
+        );
+    }
+}
+
+impl Measurements {
+    /// Convert an adc frame to si units and collect into a measurement set
+    pub fn from_frame(frame: AdcFrame) -> Self {
+        use uom::si::pressure::*;
+        use uom::si::volume_rate::*;
+
+        Self {
+            regulator_actual_pressure: Pressure::new::<millimeter_of_mercury>(
+                frame.regulator_actual_pressure.into(),
+            ),
+            systemic_flow: VolumeRate::new::<liter_per_minute>(frame.systemic_flow.into()),
+            pulmonary_flow: VolumeRate::new::<liter_per_minute>(frame.pulmonary_flow.into()),
+            systemic_preload_pressure: Pressure::new::<millimeter_of_mercury>(
+                frame.systemic_preload_pressure.into(),
+            ),
+            systemic_afterload_pressure: Pressure::new::<millimeter_of_mercury>(
+                frame.systemic_afterload_pressure.into(),
+            ),
+            pulmonary_preload_pressure: Pressure::new::<millimeter_of_mercury>(
+                frame.pulmonary_preload_pressure.into(),
+            ),
+            pulmonary_afterload_pressure: Pressure::new::<millimeter_of_mercury>(
+                frame.pulmonary_afterload_pressure.into(),
+            ),
+        }
+    }
+}
+
+#[derive(Serialize, Clone, Format)]
 pub struct Report {
-    app_state: AppState,
-    measurements: Measurements,
+    pub app_state: AppState,
+    pub measurements: Measurements,
 }
 
 #[derive(Deserialize)]

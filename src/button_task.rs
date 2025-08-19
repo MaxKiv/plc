@@ -13,6 +13,8 @@ pub async fn manage_button(
     appstate_sender: Sender<'static, Cs, AppState, 1>,
     button: Input<'static>,
 ) {
+    info!("starting BUTTON task");
+
     // Task timekeeper
     let mut ticker = Ticker::every(TASK_PERIOD);
 
@@ -21,7 +23,7 @@ pub async fn manage_button(
     loop {
         if button.is_high() {
             state = state.next();
-            info!("CONTROL: cycling app_state to {}", state);
+            info!("BUTTON: cycling app_state to {}", state);
             appstate_sender.send(state);
 
             // simple debounce

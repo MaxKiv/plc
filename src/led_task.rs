@@ -1,7 +1,7 @@
 use defmt::*;
 use embassy_stm32::gpio::Output;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Receiver};
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Ticker};
 
 use crate::AppState;
 
@@ -25,22 +25,20 @@ pub async fn blink_led(
     // Task timekeeper
     let mut ticker = Ticker::every(LED_TASK_TICK_PERIOD);
 
-    let mut old_app_state = AppState::default();
     let mut current_app_state = AppState::default();
     let mut remaining_task_period = Some(get_led_blink_period(current_app_state));
 
-    info!("starting LED loop");
+    debug!("starting LED loop");
 
     loop {
         // Check if there is a new application state
         if let Some(new_app_state) = appstate_receiver.try_changed() {
-            debug!(
-                "LED: New app state detected - switched to {:?} - reset LED cycle",
-                current_app_state
-            );
-
             remaining_task_period = None;
             current_app_state = new_app_state;
+            debug!(
+                "LED: New app state detected - switched to {:?} - reset LED cycle",
+                new_app_state
+            );
         }
 
         if let Some(remaining) = remaining_task_period {
@@ -55,8 +53,6 @@ pub async fn blink_led(
             remaining_task_period = Some(get_led_blink_period(current_app_state));
             debug!("LED: new remaining led period: {}", remaining_task_period);
         }
-
-        old_app_state = current_app_state;
 
         debug!("LED: looping");
         ticker.next().await;

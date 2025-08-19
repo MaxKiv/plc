@@ -36,7 +36,8 @@ rustflags = [
 target = "thumbv7em-none-eabihf"
 
 [env]
-DEFMT_LOG = "debug"
+# DEFMT_LOG = "debug"
+DEFMT_LOG = "info"
 
 [profile.release]
 # symbols are nice and they don't increase the size on Flash

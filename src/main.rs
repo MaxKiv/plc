@@ -13,7 +13,6 @@ use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::Config;
-use embassy_stm32::adc::{Adc, AdcChannel, SampleTime};
 use embassy_stm32::rcc::{
     AHBPrescaler, APBPrescaler, Hsi48Config, LsConfig, RtcClockSource, Sysclk, mux,
 };
@@ -22,6 +21,7 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
 use panic_probe as _;
 use serde::Serialize;
 
+use crate::comms::messages::Report;
 use crate::{comms::messages::AdcFrame, hal::Hal};
 
 #[derive(PartialEq, Clone, Copy, Serialize, Format, Default)]
@@ -44,6 +44,7 @@ impl AppState {
 
 static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
 static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
+static REPORT_CHAN: Channel<Cs, Report, 2> = Channel::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -88,6 +89,13 @@ async fn main(spawner: Spawner) {
         .spawn(control_task::control_loop(
             ADC_CHAN.receiver(),
             APPSTATE_WATCH.sender(),
+            REPORT_CHAN.sender(),
+        ))
+        .unwrap();
+    spawner
+        .spawn(comms_task::manage_communications(
+            REPORT_CHAN.receiver(),
+            hal.uart,
         ))
         .unwrap();
 }

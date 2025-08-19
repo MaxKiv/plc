@@ -1,8 +1,16 @@
-use defmt::*;
 use embassy_stm32::adc::{Adc, SampleTime};
 // use embassy_stm32::dac::{Dac, DacChannel};
 use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
-use embassy_stm32::{Peri, Peripherals, peripherals::*};
+use embassy_stm32::mode::Async;
+use embassy_stm32::usart::{self, Uart};
+use embassy_stm32::{
+    Peri, Peripherals, bind_interrupts,
+    peripherals::{self, *},
+};
+
+bind_interrupts!(struct Irqs {
+    USART2 => usart::InterruptHandler<peripherals::USART2>;
+});
 
 /// Concrete HAL for STM32G474RE
 pub struct Hal {
@@ -10,10 +18,11 @@ pub struct Hal {
     pub adc2: Adc<'static, ADC2>,
     // pub dac1: Dac<'static, DAC1>,
     // pub dac2: Dac<'static, DAC2>,
-    pub dma: Peri<'static, DMA1_CH2>,
+    pub dma: Peri<'static, DMA1_CH1>,
     pub led: Output<'static>,
     pub adc_channels: AdcChannels,
     pub button: Input<'static>,
+    pub uart: Uart<'static, Async>,
 }
 
 /// Number of adc inputs, this could be a fancy macro but I decided against the complexity
@@ -37,9 +46,9 @@ impl Hal {
         // TODO: tweak to sensor signal impedance
         adc1.set_sample_time(SampleTime::CYCLES47_5);
 
-        let mut temp_channel = adc1.enable_temperature();
-        let measured = adc1.blocking_read(&mut temp_channel);
-        info!("measured temperature: {}", measured);
+        // let mut temp_channel = adc1.enable_temperature();
+        // let measured = adc1.blocking_read(&mut temp_channel);
+        // info!("measured temperature: {}", measured);
 
         let adc2 = Adc::new(p.ADC2);
         // let dac1 = Dac::new(p.DAC1, DacChannel::);
@@ -56,9 +65,20 @@ impl Hal {
             pulmonary_afterload_pressure: p.PB11,
         };
 
-        let dma = p.DMA1_CH2;
+        let dma = p.DMA1_CH1;
 
         let button = Input::new(p.PC13, Pull::Down);
+
+        let uart = Uart::new(
+            p.USART2,
+            p.PB4,
+            p.PB3,
+            Irqs,
+            p.DMA2_CH1,
+            p.DMA2_CH2,
+            usart::Config::default(),
+        )
+        .unwrap();
 
         Self {
             adc1,
@@ -69,6 +89,7 @@ impl Hal {
             led,
             adc_channels,
             button,
+            uart,
         }
     }
 }
