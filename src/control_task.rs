@@ -16,9 +16,11 @@ pub async fn control_loop(
     // Task timekeeper
     let mut ticker = Ticker::every(CONTROL_TASK_PERIOD);
 
-    let mut state = AppState::StandBy;
-
     loop {
+        if let Ok(frame) = frame_in.try_receive() {
+            info!("CONTROL: received new adc frame: {:?}", frame);
+        }
+
         debug!("CONTROL: looping");
         ticker.next().await;
     }
