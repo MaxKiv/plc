@@ -10,19 +10,23 @@ pub struct Hal {
     pub adc2: Adc<'static, ADC2>,
     // pub dac1: Dac<'static, DAC1>,
     // pub dac2: Dac<'static, DAC2>,
+    pub dma: Peri<'static, DMA1_CH2>,
     pub led: Output<'static>,
     pub adc_channels: AdcChannels,
     pub button: Input<'static>,
 }
 
+/// Number of adc inputs, this could be a fancy macro but I decided against the complexity
+pub const NUM_ADC_INPUTS: usize = 7;
+
 pub struct AdcChannels {
-    pub channel_regulator_actual_pressure: Peri<'static, PA0>,
-    pub channel_systemic_flow: Peri<'static, PA1>,
-    pub channel_pulmonary_flow: Peri<'static, PA2>,
-    pub channel_systemic_preload_pressure: Peri<'static, PA3>,
-    pub channel_systemic_afterload_pressure: Peri<'static, PB0>,
-    pub channel_pulmonary_preload_pressure: Peri<'static, PB1>,
-    pub channel_pulmonary_afterload_pressure: Peri<'static, PB11>,
+    pub regulator_actual_pressure: Peri<'static, PA0>,
+    pub systemic_flow: Peri<'static, PA1>,
+    pub pulmonary_flow: Peri<'static, PA2>,
+    pub systemic_preload_pressure: Peri<'static, PA3>,
+    pub systemic_afterload_pressure: Peri<'static, PB0>,
+    pub pulmonary_preload_pressure: Peri<'static, PB1>,
+    pub pulmonary_afterload_pressure: Peri<'static, PB11>,
 }
 
 impl Hal {
@@ -43,14 +47,16 @@ impl Hal {
         let led = Output::new(p.PA5, Level::Low, Speed::Low);
 
         let adc_channels = AdcChannels {
-            channel_regulator_actual_pressure: p.PA0,
-            channel_systemic_flow: p.PA1,
-            channel_pulmonary_flow: p.PA2,
-            channel_systemic_preload_pressure: p.PA3,
-            channel_systemic_afterload_pressure: p.PB0,
-            channel_pulmonary_preload_pressure: p.PB1,
-            channel_pulmonary_afterload_pressure: p.PB11,
+            regulator_actual_pressure: p.PA0,
+            systemic_flow: p.PA1,
+            pulmonary_flow: p.PA2,
+            systemic_preload_pressure: p.PA3,
+            systemic_afterload_pressure: p.PB0,
+            pulmonary_preload_pressure: p.PB1,
+            pulmonary_afterload_pressure: p.PB11,
         };
+
+        let dma = p.DMA1_CH2;
 
         let button = Input::new(p.PC13, Pull::Down);
 
@@ -59,6 +65,7 @@ impl Hal {
             adc2,
             // dac1,
             // dac2,
+            dma,
             led,
             adc_channels,
             button,

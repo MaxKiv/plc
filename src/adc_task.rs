@@ -1,55 +1,63 @@
 use defmt::*;
 use embassy_stm32::{
-    adc::{self, Adc, SampleTime},
-    bind_interrupts,
-    peripherals::ADC1,
+    Peri,
+    adc::{Adc, AdcChannel, SampleTime},
+    peripherals::{ADC1, DMA1_CH2},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel::Sender};
 use embassy_time::Timer;
 
-use crate::{comms::messages::AdcFrame, hal::AdcChannels};
-
-// TODO: do i need this?
-// bind_interrupts!(struct Irqs {
-//     ADC1_2 => adc::InterruptHandler<ADC1>;
-// });
+use crate::{
+    comms::messages::AdcFrame,
+    hal::{AdcChannels, NUM_ADC_INPUTS},
+};
 
 const SAMPLE_PERIOD_MS: u64 = 100;
+
+static mut DMA_BUF: [u16; NUM_ADC_INPUTS] = [0u16; NUM_ADC_INPUTS];
 
 #[embassy_executor::task]
 pub async fn read_adc(
     mut adc: Adc<'static, ADC1>,
-    mut adc_channels: AdcChannels,
+    mut dma: Peri<'static, DMA1_CH2>,
+    adc_channels: AdcChannels,
     frame_out: Sender<'static, Cs, AdcFrame, 2>,
 ) {
-    loop {
-        // TODO: use DMA like this
-        // let frame = AdcFrame {
-        //     regulator_actual_pressure: adc
-        //         .read(&mut adc_channels.channel_regulator_actual_pressure)
-        //         .await,
-        //     systemic_flow: adc.read(&mut adc_channels.channel_systemic_flow).await,
-        //     pulmonary_flow: adc.read(&mut adc_channels.channel_systemic_flow).await,
-        //     systemic_preload_pressure: adc.read(&mut adc_channels.channel_systemic_flow).await,
-        //     systemic_afterload_pressure: adc.read(&mut adc_channels.channel_systemic_flow).await,
-        //     pulmonary_preload_pressure: adc.read(&mut adc_channels.channel_systemic_flow).await,
-        //     pulmonary_afterload_pressure: adc.read(&mut adc_channels.channel_systemic_flow).await,
-        // };
+    let mut read_buffer = unsafe { &mut DMA_BUF[..] };
 
-        // Blocking one-shot reads
+    let mut regulator_pressure = adc_channels.regulator_actual_pressure.degrade_adc();
+    let mut systemic_flow = adc_channels.systemic_flow.degrade_adc();
+    let mut pulmonary_flow = adc_channels.pulmonary_flow.degrade_adc();
+    let mut systemic_preload_pressure = adc_channels.systemic_preload_pressure.degrade_adc();
+    let mut systemic_afterload_pressure = adc_channels.systemic_afterload_pressure.degrade_adc();
+    let mut pulmonary_preload_pressure = adc_channels.pulmonary_preload_pressure.degrade_adc();
+    let mut pulmonary_afterload_pressure = adc_channels.pulmonary_afterload_pressure.degrade_adc();
+
+    loop {
+        adc.read(
+            dma.reborrow(),
+            [
+                (&mut regulator_pressure, SampleTime::CYCLES24_5),
+                (&mut systemic_flow, SampleTime::CYCLES24_5),
+                (&mut pulmonary_flow, SampleTime::CYCLES24_5),
+                (&mut systemic_preload_pressure, SampleTime::CYCLES24_5),
+                (&mut systemic_afterload_pressure, SampleTime::CYCLES24_5),
+                (&mut pulmonary_preload_pressure, SampleTime::CYCLES24_5),
+                (&mut pulmonary_afterload_pressure, SampleTime::CYCLES24_5),
+            ]
+            .into_iter(),
+            &mut read_buffer,
+        )
+        .await;
+
         let frame = AdcFrame {
-            regulator_actual_pressure: adc
-                .blocking_read(&mut adc_channels.channel_regulator_actual_pressure),
-            systemic_flow: adc.blocking_read(&mut adc_channels.channel_systemic_flow),
-            pulmonary_flow: adc.blocking_read(&mut adc_channels.channel_pulmonary_flow),
-            systemic_preload_pressure: adc
-                .blocking_read(&mut adc_channels.channel_systemic_preload_pressure),
-            systemic_afterload_pressure: adc
-                .blocking_read(&mut adc_channels.channel_systemic_afterload_pressure),
-            pulmonary_preload_pressure: adc
-                .blocking_read(&mut adc_channels.channel_pulmonary_preload_pressure),
-            pulmonary_afterload_pressure: adc
-                .blocking_read(&mut adc_channels.channel_pulmonary_afterload_pressure),
+            regulator_actual_pressure: read_buffer[0],
+            systemic_flow: read_buffer[1],
+            pulmonary_flow: read_buffer[2],
+            systemic_preload_pressure: read_buffer[3],
+            systemic_afterload_pressure: read_buffer[4],
+            pulmonary_preload_pressure: read_buffer[5],
+            pulmonary_afterload_pressure: read_buffer[6],
         };
 
         info!("measured ADC frame: {:?}", frame);

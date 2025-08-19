@@ -13,6 +13,7 @@ use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::Config;
+use embassy_stm32::adc::{Adc, AdcChannel, SampleTime};
 use embassy_stm32::rcc::{
     AHBPrescaler, APBPrescaler, Hsi48Config, LsConfig, RtcClockSource, Sysclk, mux,
 };
@@ -78,6 +79,7 @@ async fn main(spawner: Spawner) {
     spawner
         .spawn(adc_task::read_adc(
             hal.adc1,
+            hal.dma,
             hal.adc_channels,
             ADC_CHAN.sender(),
         ))
