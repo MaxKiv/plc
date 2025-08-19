@@ -12,6 +12,9 @@ use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::Config;
+use embassy_stm32::rcc::{
+    AHBPrescaler, APBPrescaler, Hsi48Config, LsConfig, RtcClockSource, Sysclk, mux,
+};
 use embassy_sync::channel::Channel;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
 use panic_probe as _;
@@ -44,20 +47,27 @@ static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
 async fn main(spawner: Spawner) {
     info!("Starting...");
     let mut config = Config::default();
-    {
-        use embassy_stm32::rcc::*;
-        config.rcc.pll = Some(Pll {
-            source: PllSource::HSI,
-            prediv: PllPreDiv::DIV4,
-            mul: PllMul::MUL85,
-            divp: None,
-            divq: None,
-            // Main system clock at 170 MHz
-            divr: Some(PllRDiv::DIV2),
-        });
-        config.rcc.mux.adc12sel = mux::Adcsel::SYS;
-        config.rcc.sys = Sysclk::PLL1_R;
-    }
+    config.rcc.pll = None;
+    config.rcc.hsi = true;
+    config.rcc.hse = None;
+    config.rcc.sys = Sysclk::HSI;
+    config.rcc.hsi48 = Some(Hsi48Config {
+        sync_from_usb: false,
+    });
+    config.rcc.ahb_pre = AHBPrescaler::DIV1;
+    config.rcc.apb1_pre = APBPrescaler::DIV1;
+    config.rcc.apb2_pre = APBPrescaler::DIV1;
+    config.rcc.low_power_run = false;
+    config.rcc.ls = LsConfig {
+        rtc: RtcClockSource::LSI,
+        lsi: true,
+        lse: None,
+    };
+    config.rcc.boost = false;
+    config.rcc.mux.rtcsel = mux::Rtcsel::LSI;
+    config.rcc.mux.adc12sel = mux::Adcsel::SYS;
+    config.rcc.mux.adc345sel = mux::Adcsel::SYS;
+    config.rcc.mux.clk48sel = mux::Clk48sel::HSI48;
     let p = embassy_stm32::init(config);
 
     info!("Default configuration applied");

@@ -40,6 +40,8 @@
           toolchain # Our Rust toolchain
           rust-analyzer # Rust LSP
           probe-rs-tools # probe-rs
+          gcc-arm-embedded # arm-none-eabi-gdb
+          openocd # gdb server
         ];
       };
 

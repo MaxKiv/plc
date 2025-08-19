@@ -23,9 +23,9 @@ uom = { version = "0.37.0", default-features = false, features = ["serde", "si",
 version = "0.3.0"
 optional = true
 default-features = false
-features = ["defmt", "time-driver-any"]
+features = ["defmt", "rt"]
 
 [features]
 default = [ "stm32g474re" ]
-stm32f103c6 = ["embassy-stm32/stm32f103c6"]
-stm32g474re = ["embassy-stm32/stm32g474re", "embassy-stm32/dual-bank"]
+stm32f103c6 = ["embassy-stm32/stm32f103c6", "embassy-stm32/time-driver-any"]
+stm32g474re = ["embassy-stm32/stm32g474re", "embassy-stm32/dual-bank", "embassy-stm32/time-driver-tim2"]
