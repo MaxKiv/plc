@@ -1,41 +1,117 @@
 use defmt::*;
-use embassy_stm32::{mode::Async, usart::Uart};
-use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel::Receiver};
-use embassy_time::{Duration, Ticker};
-use postcard::to_slice;
+use embassy_stm32::{
+    mode::Async,
+    usart::{UartRx, UartTx},
+};
+use embassy_sync::{
+    blocking_mutex::raw::ThreadModeRawMutex as Cs,
+    watch::{self},
+};
+use embassy_time::{Duration, Ticker, WithTimeout};
+use postcard::{from_bytes, to_slice};
 
-use crate::comms::messages::Report;
+use crate::comms::messages::{Report, Setpoint};
 
-const TASK_PERIOD: Duration = Duration::from_millis(100);
+/// Period at which this task is ticked
+const TASK_PERIOD: Duration = Duration::from_millis(10);
+/// Time we remain patient before deciding the host is gone and we need to take matters into our
+/// own hands
+const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(1000);
+/// Time we remain patient before deciding our application is not responding
+const REPORT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(1000);
 
 #[embassy_executor::task]
-pub async fn manage_communications(
-    report_receiver: Receiver<'static, Cs, Report, 2>,
-    mut uart: Uart<'static, Async>,
+pub async fn forward_reports(
+    mut uart_tx: UartTx<'static, Async>,
+    mut report_receiver: watch::Receiver<'static, Cs, Report, 1>,
 ) {
-    info!("starting COMMS task");
-
     let mut ticker = Ticker::every(TASK_PERIOD);
 
     loop {
-        // Receive report
-        let report = report_receiver.receive().await;
+        // Wait to receive a new report
+        if let Ok(report) = report_receiver
+            .changed()
+            .with_timeout(REPORT_RECEIVE_TIMEOUT)
+            .await
+        {
+            // Serialise received report
+            let mut buf = [0u8; 32];
+            let used = to_slice(&report, &mut buf).unwrap();
 
-        // Serialise received report
+            // Send serialized report to host
+            info!(
+                "COMMS - forward_reports: sending serialised report to host: {:?}",
+                used
+            );
+            if let Err(e) = uart_tx.write(used).await {
+                error!(
+                    "COMMS - forward_reports: Error sending uart frame {:?}: {}",
+                    used, e
+                );
+            }
+        } else {
+            // our firmware seems to be toast
+            error!(
+                "COMMS - forward_reports: timeout waiting for report to arrive from control task, nothing to do but continue...",
+            );
+        }
+        ticker.next().await;
+    }
+}
+
+#[embassy_executor::task]
+pub async fn receive_setpoints(
+    mut uart_rx: UartRx<'static, Async>,
+    setpoint_sender: watch::Sender<'static, Cs, Setpoint, 1>,
+) {
+    // let mut ticker = Ticker::every(TASK_PERIOD);
+
+    loop {
+        // Receive setpoint
         let mut buf = [0u8; 32];
-        let used = to_slice(&report, &mut buf).unwrap();
+        if let Ok(uart_result) = uart_rx
+            .read_until_idle(&mut buf)
+            .with_timeout(SETPOINT_RECEIVE_TIMEOUT)
+            .await
+        {
+            match uart_result {
+                Ok(len) => {
+                    info!("COMMS - forward_reports: read {} byte ({})", len, buf);
 
-        info!("COMMS: sending serialised report to host: {:?}", used);
+                    let deserialised: postcard::Result<Setpoint> = from_bytes(&buf[..=len]);
+                    match deserialised {
+                        Ok(setpoint) => {
+                            info!(
+                                "COMMS - forward_reports: sending deserialised setpoint {:?}",
+                                setpoint
+                            );
 
-        // Send serialized report to host
-        if let Err(e) = uart.write(used).await {
-            error!("COMMS: Error sending uart frame {:?}: {}", used, e);
+                            setpoint_sender.send(setpoint);
+                        }
+                        Err(e) => {
+                            error!(
+                                "COMMS - forward_reports: error receiving setpoint from host: {}, skipping...",
+                                e
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        "COMMS - forward_reports: error receiving setpoint from host: {}, skipping...",
+                        e
+                    );
+                }
+            }
+        } else {
+            // our host seems to be toast
+            error!(
+                "COMMS - receive_setpoints: timeout waiting for setpoint from RPI3 host, nothing to do but continue...",
+            );
         }
 
-        // Receive setpoint
-        // let mut buf = [0u8; 32];
-        // let setpoint = uart.read_until_idle(&mut buf).await;
-
-        ticker.next().await;
+        // TODO: think about removing this as it just introduces latency
+        // This puts an upper bound on how often a new setpoint is requested
+        // ticker.next().await;
     }
 }

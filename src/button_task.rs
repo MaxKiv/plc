@@ -5,6 +5,7 @@ use embassy_time::{Duration, Ticker, Timer};
 
 use crate::AppState;
 
+/// Period at which this task is ticked
 const TASK_PERIOD: Duration = Duration::from_millis(100);
 const DEBOUNCE_DURATION: Duration = Duration::from_millis(70);
 

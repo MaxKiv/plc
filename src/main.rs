@@ -21,7 +21,7 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
 use panic_probe as _;
 use serde::Serialize;
 
-use crate::comms::messages::Report;
+use crate::comms::messages::{Report, Setpoint};
 use crate::{comms::messages::AdcFrame, hal::Hal};
 
 #[derive(PartialEq, Clone, Copy, Serialize, Format, Default)]
@@ -44,7 +44,8 @@ impl AppState {
 
 static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
 static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
-static REPORT_CHAN: Channel<Cs, Report, 2> = Channel::new();
+static REPORT_WATCH: Watch<Cs, Report, 1> = Watch::new();
+static SETPOINT_WATCH: Watch<Cs, Setpoint, 1> = Watch::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -89,13 +90,21 @@ async fn main(spawner: Spawner) {
         .spawn(control_task::control_loop(
             ADC_CHAN.receiver(),
             APPSTATE_WATCH.sender(),
-            REPORT_CHAN.sender(),
+            REPORT_WATCH.sender(),
+        ))
+        .unwrap();
+
+    let (uart_tx, uart_rx) = hal.uart.split();
+    spawner
+        .spawn(comms_task::forward_reports(
+            uart_tx,
+            REPORT_WATCH.receiver().unwrap(),
         ))
         .unwrap();
     spawner
-        .spawn(comms_task::manage_communications(
-            REPORT_CHAN.receiver(),
-            hal.uart,
+        .spawn(comms_task::receive_setpoints(
+            uart_rx,
+            SETPOINT_WATCH.sender(),
         ))
         .unwrap();
 }

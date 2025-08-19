@@ -7,13 +7,14 @@ use crate::{
     comms::messages::{AdcFrame, Measurements, Report},
 };
 
+/// Period at which this task is ticked
 const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(10);
 
 #[embassy_executor::task]
 pub async fn control_loop(
     frame_in: channel::Receiver<'static, Cs, AdcFrame, 2>,
     appstate_out: watch::Sender<'static, Cs, AppState, 1>,
-    report_out: channel::Sender<'static, Cs, Report, 2>,
+    report_out: watch::Sender<'static, Cs, Report, 1>,
 ) {
     info!("starting CONTROL task");
 
@@ -31,7 +32,7 @@ pub async fn control_loop(
             info!("CONTROL: collected report: {:?}", report);
 
             // Send report to the host
-            report_out.send(report).await;
+            report_out.send(report);
         }
 
         debug!("CONTROL: looping");

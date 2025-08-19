@@ -5,6 +5,7 @@ use embassy_time::{Duration, Ticker};
 
 use crate::AppState;
 
+/// Period at which this task is ticked
 const LED_TASK_TICK_PERIOD: Duration = Duration::from_millis(100);
 
 fn get_led_blink_period(app_state: AppState) -> Duration {

@@ -33,7 +33,7 @@ impl Format for Measurements {
 
         defmt::write!(
             fmt,
-            "Measurement(reg: {}, sf: {}, pf: {}, spp: {}, sap: {}, ppp: {}, pap: {}",
+            "Measurement(reg: {} mmHg, sf: {} lpm, pf: {} lpm, spp: {} mmHg, sap: {} mmHg, ppp: {} mmHg, pap: {} mmHg",
             self.regulator_actual_pressure
                 .get::<millimeter_of_mercury>(),
             self.systemic_flow.get::<liter_per_minute>(),
@@ -84,10 +84,25 @@ pub struct Report {
     pub measurements: Measurements,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Setpoint {
     pressure: Pressure,
     e_valve: bool,
     heart_valve_right: bool,
     heart_valve_left: bool,
+}
+
+impl Format for Setpoint {
+    fn format(&self, fmt: defmt::Formatter) {
+        use uom::si::pressure::millibar;
+
+        defmt::write!(
+            fmt,
+            "Setpoint(regulator: {} mbar, e_valve: {}, heart_valve_left: {}, heart_valve_right: {}",
+            self.pressure.get::<millibar>(),
+            self.e_valve,
+            self.heart_valve_left,
+            self.heart_valve_left,
+        );
+    }
 }
