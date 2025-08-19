@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+        "name": "Debug STM32G4 (Rust firmware)",
+        "type": "cortex-debug",
+        "request": "launch",
+        "servertype": "openocd",
+        "cwd": "${workspaceFolder}",
+        "executable": "${workspaceFolder}/target/thumbv7em-none-eabihf/debug/plc-lite", 
+        "device": "STM32G474RE",                // Pick the exact STM32G4 part number
+        "configFiles": [
+            "interface/stlink.cfg",
+            "target/stm32g4x.cfg"
+        ],
+        "runToMain": true,
+        // "svdFile": "${workspaceFolder}/STM32G4.svd", 
+        // "preLaunchTask": "cargo build",        // optional, see tasks.json
+        "postRestartCommands": [
+            "monitor reset halt"
+        ],
+        "showDevDebugOutput": "both"
+        }
+    ]
+}
