@@ -3,13 +3,11 @@
 
 mod adc_task;
 mod button_task;
-mod comms;
 mod comms_task;
 mod control_task;
 pub mod hal;
-pub mod led_task;
+mod led_task;
 
-use crate::{comms::messages::AdcFrame, hal::Hal};
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -19,8 +17,11 @@ use embassy_stm32::rcc::{
 };
 use embassy_sync::channel::Channel;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
-use love_letter::{AppState, Measurements, Report, Setpoint};
+use love_letter::{AppState, Report, Setpoint};
 use panic_probe as _;
+
+use crate::adc_task::AdcFrame;
+use crate::hal::Hal;
 
 static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
 static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();

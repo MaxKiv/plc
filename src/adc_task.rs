@@ -6,11 +6,10 @@ use embassy_stm32::{
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel::Sender};
 use embassy_time::Timer;
+use love_letter::Measurements;
+use serde::Serialize;
 
-use crate::{
-    comms::messages::AdcFrame,
-    hal::{AdcChannels, NUM_ADC_INPUTS},
-};
+use crate::hal::{AdcChannels, NUM_ADC_INPUTS};
 
 const SAMPLE_PERIOD_MS: u64 = 100;
 
@@ -67,5 +66,44 @@ pub async fn read_adc(
         frame_out.send(frame).await;
 
         Timer::after_millis(SAMPLE_PERIOD_MS).await;
+    }
+}
+
+#[derive(Format, Serialize)]
+pub struct AdcFrame {
+    pub regulator_actual_pressure: u16,
+    pub systemic_flow: u16,
+    pub pulmonary_flow: u16,
+    pub systemic_preload_pressure: u16,
+    pub systemic_afterload_pressure: u16,
+    pub pulmonary_preload_pressure: u16,
+    pub pulmonary_afterload_pressure: u16,
+}
+
+impl AdcFrame {
+    /// Convert an adc frame to si units and collect into a measurement set
+    pub fn into_measurement(self) -> Measurements {
+        use uom::si::pressure::*;
+        use uom::si::volume_rate::*;
+
+        Measurements {
+            regulator_actual_pressure: Pressure::new::<millimeter_of_mercury>(
+                self.regulator_actual_pressure.into(),
+            ),
+            systemic_flow: VolumeRate::new::<liter_per_minute>(self.systemic_flow.into()),
+            pulmonary_flow: VolumeRate::new::<liter_per_minute>(self.pulmonary_flow.into()),
+            systemic_preload_pressure: Pressure::new::<millimeter_of_mercury>(
+                self.systemic_preload_pressure.into(),
+            ),
+            systemic_afterload_pressure: Pressure::new::<millimeter_of_mercury>(
+                self.systemic_afterload_pressure.into(),
+            ),
+            pulmonary_preload_pressure: Pressure::new::<millimeter_of_mercury>(
+                self.pulmonary_preload_pressure.into(),
+            ),
+            pulmonary_afterload_pressure: Pressure::new::<millimeter_of_mercury>(
+                self.pulmonary_afterload_pressure.into(),
+            ),
+        }
     }
 }
