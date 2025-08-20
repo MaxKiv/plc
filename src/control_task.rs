@@ -1,11 +1,9 @@
 use defmt::*;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel, watch};
 use embassy_time::{Duration, Ticker};
+use love_letter::{AppState, Report};
 
-use crate::{
-    AppState,
-    comms::messages::{AdcFrame, Measurements, Report},
-};
+use crate::comms::messages::AdcFrame;
 
 /// Period at which this task is ticked
 const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(10);
@@ -27,7 +25,7 @@ pub async fn control_loop(
             // Collect mockloop state and latest measurements into a report
             let report = Report {
                 app_state: calculate_appstate(),
-                measurements: Measurements::from_frame(frame),
+                measurements: frame.into_measurement(),
             };
             info!("CONTROL: collected report: {:?}", report);
 

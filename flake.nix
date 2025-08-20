@@ -42,6 +42,7 @@
           probe-rs-tools # probe-rs
           gcc-arm-embedded # arm-none-eabi-gdb
           openocd # gdb server
+          tio # serial monitor
         ];
       };
 

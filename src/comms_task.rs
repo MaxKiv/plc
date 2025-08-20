@@ -10,7 +10,7 @@ use embassy_sync::{
 use embassy_time::{Duration, Ticker, WithTimeout};
 use postcard::{from_bytes, to_slice};
 
-use crate::comms::messages::{Report, Setpoint};
+use crate::{Report, Setpoint};
 
 /// Period at which this task is ticked
 const TASK_PERIOD: Duration = Duration::from_millis(10);
@@ -21,6 +21,7 @@ const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(1000);
 const REPORT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(1000);
 
 #[embassy_executor::task]
+/// Forward firmware state reports to the HHH host every
 pub async fn forward_reports(
     mut uart_tx: UartTx<'static, Async>,
     mut report_receiver: watch::Receiver<'static, Cs, Report, 1>,
@@ -60,6 +61,7 @@ pub async fn forward_reports(
 }
 
 #[embassy_executor::task]
+/// Process any new setpoints received from the host as soon as they come in
 pub async fn receive_setpoints(
     mut uart_rx: UartRx<'static, Async>,
     setpoint_sender: watch::Sender<'static, Cs, Setpoint, 1>,
@@ -76,13 +78,13 @@ pub async fn receive_setpoints(
         {
             match uart_result {
                 Ok(len) => {
-                    info!("COMMS - forward_reports: read {} byte ({})", len, buf);
+                    info!("COMMS - receive_setpoints: read {} byte ({})", len, buf);
 
                     let deserialised: postcard::Result<Setpoint> = from_bytes(&buf[..=len]);
                     match deserialised {
                         Ok(setpoint) => {
                             info!(
-                                "COMMS - forward_reports: sending deserialised setpoint {:?}",
+                                "COMMS - receive_setpoints: sending deserialised setpoint {:?}",
                                 setpoint
                             );
 
@@ -90,7 +92,7 @@ pub async fn receive_setpoints(
                         }
                         Err(e) => {
                             error!(
-                                "COMMS - forward_reports: error receiving setpoint from host: {}, skipping...",
+                                "COMMS - receive_setpoints: error deserialising setpoint from host: {}, skipping...",
                                 e
                             );
                         }
@@ -98,7 +100,7 @@ pub async fn receive_setpoints(
                 }
                 Err(e) => {
                     error!(
-                        "COMMS - forward_reports: error receiving setpoint from host: {}, skipping...",
+                        "COMMS - receive_setpoints: error receiving setpoint from host: {}, skipping...",
                         e
                     );
                 }

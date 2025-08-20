@@ -1,4 +1,4 @@
-use crate::comms::messages::*;
+use crate::{Report, Setpoint};
 
 pub mod messages;
 mod uart;
