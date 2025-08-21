@@ -36,7 +36,7 @@ pub async fn forward_reports(
             .await
         {
             // Serialise received report
-            let mut buf = [0u8; 32];
+            let mut buf = [0u8; 64];
             let used = to_slice(&report, &mut buf).unwrap();
 
             // Send serialized report to host
@@ -66,8 +66,6 @@ pub async fn receive_setpoints(
     mut uart_rx: UartRx<'static, Async>,
     setpoint_sender: watch::Sender<'static, Cs, Setpoint, 1>,
 ) {
-    // let mut ticker = Ticker::every(TASK_PERIOD);
-
     loop {
         // Receive setpoint
         let mut buf = [0u8; 32];
@@ -111,9 +109,5 @@ pub async fn receive_setpoints(
                 "COMMS - receive_setpoints: timeout waiting for setpoint from RPI3 host, nothing to do but continue...",
             );
         }
-
-        // TODO: think about removing this as it just introduces latency
-        // This puts an upper bound on how often a new setpoint is requested
-        // ticker.next().await;
     }
 }

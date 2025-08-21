@@ -2,6 +2,7 @@ use embassy_stm32::adc::{Adc, SampleTime};
 // use embassy_stm32::dac::{Dac, DacChannel};
 use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
 use embassy_stm32::mode::Async;
+use embassy_stm32::rtc::{Rtc, RtcConfig};
 use embassy_stm32::usart::{self, Uart};
 use embassy_stm32::{
     Peri, Peripherals, bind_interrupts,
@@ -23,6 +24,7 @@ pub struct Hal {
     pub adc_channels: AdcChannels,
     pub button: Input<'static>,
     pub uart: Uart<'static, Async>,
+    pub rtc: Rtc,
 }
 
 /// Number of adc inputs, this could be a fancy macro but I decided against the complexity
@@ -80,6 +82,9 @@ impl Hal {
         )
         .unwrap();
 
+        // Default initialize the RTC
+        let rtc = Rtc::new(p.RTC, RtcConfig::default());
+
         Self {
             adc1,
             adc2,
@@ -90,6 +95,7 @@ impl Hal {
             adc_channels,
             button,
             uart,
+            rtc,
         }
     }
 }

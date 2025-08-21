@@ -5,13 +5,13 @@ use embassy_stm32::{
     peripherals::{ADC1, DMA1_CH1},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel::Sender};
-use embassy_time::Timer;
+use embassy_time::{Duration, Instant, Timer};
 use love_letter::Measurements;
 use serde::Serialize;
 
 use crate::hal::{AdcChannels, NUM_ADC_INPUTS};
 
-const SAMPLE_PERIOD_MS: u64 = 100;
+const SAMPLE_PERIOD: Duration = Duration::from_millis(10);
 
 static mut DMA_BUF: [u16; NUM_ADC_INPUTS] = [0u16; NUM_ADC_INPUTS];
 
@@ -65,7 +65,7 @@ pub async fn read_adc(
 
         frame_out.send(frame).await;
 
-        Timer::after_millis(SAMPLE_PERIOD_MS).await;
+        Timer::after(SAMPLE_PERIOD).await;
     }
 }
 
@@ -87,6 +87,7 @@ impl AdcFrame {
         use uom::si::volume_rate::*;
 
         Measurements {
+            timestamp: Instant::now().as_millis(),
             regulator_actual_pressure: Pressure::new::<millimeter_of_mercury>(
                 self.regulator_actual_pressure.into(),
             ),
