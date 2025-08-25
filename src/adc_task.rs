@@ -87,7 +87,7 @@ impl AdcFrame {
         use uom::si::volume_rate::*;
 
         Measurements {
-            timestamp: Instant::now().as_millis(),
+            timestamp: Instant::now().as_micros(),
             regulator_actual_pressure: Pressure::new::<millimeter_of_mercury>(
                 self.regulator_actual_pressure.into(),
             ),

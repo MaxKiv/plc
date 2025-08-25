@@ -73,6 +73,7 @@ async fn main(spawner: Spawner) {
             ADC_CHAN.receiver(),
             APPSTATE_WATCH.sender(),
             REPORT_WATCH.sender(),
+            SETPOINT_WATCH.receiver(),
         ))
         .unwrap();
 
