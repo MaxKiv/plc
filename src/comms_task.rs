@@ -8,7 +8,7 @@ use embassy_sync::{
     watch::{self},
 };
 use embassy_time::{Duration, Ticker, WithTimeout};
-use postcard::{from_bytes, to_slice};
+use love_letter::{deserialize_setpoint, serialize_report};
 
 use crate::{Report, Setpoint};
 
@@ -16,9 +16,9 @@ use crate::{Report, Setpoint};
 const TASK_PERIOD: Duration = Duration::from_millis(10);
 /// Time we remain patient before deciding the host is gone and we need to take matters into our
 /// own hands
-const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(1000);
+const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
 /// Time we remain patient before deciding our application is not responding
-const REPORT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(1000);
+const REPORT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
 
 #[embassy_executor::task]
 /// Forward firmware state reports to the HHH host every
@@ -30,25 +30,33 @@ pub async fn forward_reports(
 
     loop {
         // Wait to receive a new report
-        if let Ok(report) = report_receiver
+        if let Ok(ref report) = report_receiver
             .changed()
             .with_timeout(REPORT_RECEIVE_TIMEOUT)
             .await
         {
             // Serialise received report
-            let mut buf = [0u8; 64];
-            let used = to_slice(&report, &mut buf).unwrap();
-
-            // Send serialized report to host
-            info!(
-                "COMMS - forward_reports: sending serialised report to host: {:?}",
-                used
-            );
-            if let Err(e) = uart_tx.write(used).await {
-                error!(
-                    "COMMS - forward_reports: Error sending uart frame {:?}: {}",
-                    used, e
-                );
+            let mut buf = [0u8; love_letter::REPORT_BYTES];
+            match serialize_report(report.clone(), &mut buf) {
+                Ok(buf) => {
+                    // Send serialized report to host
+                    info!(
+                        "COMMS - forward_reports: sending serialised report to host: {:?}",
+                        buf
+                    );
+                    if let Err(err) = uart_tx.write(buf).await {
+                        error!(
+                            "COMMS - forward_reports: Error sending uart frame {:?}: {}",
+                            buf, err
+                        );
+                    }
+                }
+                Err(err) => {
+                    error!(
+                        "COMMS - forward_reports: Error serializing report {:?}: {}",
+                        report, err
+                    );
+                }
             }
         } else {
             // our firmware seems to be toast
@@ -70,7 +78,7 @@ pub async fn receive_setpoints(
         // Receive setpoint
         let mut buf = [0u8; 32];
         if let Ok(uart_result) = uart_rx
-            .read_until_idle(&mut buf)
+            .read(&mut buf)
             .with_timeout(SETPOINT_RECEIVE_TIMEOUT)
             .await
         {
@@ -78,8 +86,7 @@ pub async fn receive_setpoints(
                 Ok(len) => {
                     info!("COMMS - receive_setpoints: read {} byte ({})", len, buf);
 
-                    let deserialised: postcard::Result<Setpoint> = from_bytes(&buf[..=len]);
-                    match deserialised {
+                    match deserialize_setpoint(&mut buf) {
                         Ok(setpoint) => {
                             info!(
                                 "COMMS - receive_setpoints: sending deserialised setpoint {:?}",
@@ -88,10 +95,10 @@ pub async fn receive_setpoints(
 
                             setpoint_sender.send(setpoint);
                         }
-                        Err(e) => {
+                        Err(err) => {
                             error!(
                                 "COMMS - receive_setpoints: error deserialising setpoint from host: {}, skipping...",
-                                e
+                                err
                             );
                         }
                     }

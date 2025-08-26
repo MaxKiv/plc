@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::hal::{AdcChannels, NUM_ADC_INPUTS};
 
-const SAMPLE_PERIOD: Duration = Duration::from_millis(10);
+const SAMPLE_PERIOD: Duration = Duration::from_millis(1000);
 
 static mut DMA_BUF: [u16; NUM_ADC_INPUTS] = [0u16; NUM_ADC_INPUTS];
 

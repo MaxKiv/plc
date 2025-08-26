@@ -73,7 +73,9 @@ async fn main(spawner: Spawner) {
             ADC_CHAN.receiver(),
             APPSTATE_WATCH.sender(),
             REPORT_WATCH.sender(),
-            SETPOINT_WATCH.receiver(),
+            SETPOINT_WATCH
+                .receiver()
+                .expect("max number of setpoint receivers created"),
         ))
         .unwrap();
 
