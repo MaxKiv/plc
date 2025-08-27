@@ -1,17 +1,20 @@
 use embassy_stm32::adc::{Adc, SampleTime};
 // use embassy_stm32::dac::{Dac, DacChannel};
 use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
-use embassy_stm32::mode::Async;
 use embassy_stm32::rtc::{Rtc, RtcConfig};
-use embassy_stm32::usart::{self, Uart};
+use embassy_stm32::usart::{self, BufferedUart};
 use embassy_stm32::{
     Peri, Peripherals, bind_interrupts,
     peripherals::{self, *},
 };
+use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
-    USART2 => usart::InterruptHandler<peripherals::USART2>;
+    USART2 => usart::BufferedInterruptHandler<peripherals::USART2>;
 });
+
+static RX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
+static TX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 
 /// Concrete HAL for STM32G474RE
 pub struct Hal {
@@ -23,7 +26,7 @@ pub struct Hal {
     pub led: Output<'static>,
     pub adc_channels: AdcChannels,
     pub button: Input<'static>,
-    pub uart: Uart<'static, Async>,
+    pub uart: BufferedUart<'static>,
     pub rtc: Rtc,
 }
 
@@ -71,13 +74,17 @@ impl Hal {
 
         let button = Input::new(p.PC13, Pull::Down);
 
+        // Construct the BufferedUart, a structure allows us to process received uart bytes from a
+        // ring buffer that is continously filled by DMA, and send uart bytes using a software FIFO
         let mut uart_cfg = usart::Config::default();
-        uart_cfg.baudrate = 921600;
-
-        let uart = Uart::new(
-            p.USART2, p.PB4, p.PB3, Irqs, p.DMA2_CH1, p.DMA2_CH2, uart_cfg,
-        )
-        .unwrap();
+        // uart_cfg.baudrate = 921600;
+        uart_cfg.baudrate = love_letter::BAUDRATE;
+        let rx = p.PB4;
+        let tx = p.PB3;
+        let tx_buffer = &mut TX_BUF.init([0u8; 2048])[..];
+        let rx_buffer = &mut RX_BUF.init([0u8; 2048])[..];
+        let uart =
+            BufferedUart::new(p.USART2, rx, tx, tx_buffer, rx_buffer, Irqs, uart_cfg).unwrap();
 
         // Default initialize the RTC
         let rtc = Rtc::new(p.RTC, RtcConfig::default());

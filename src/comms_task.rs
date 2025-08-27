@@ -1,19 +1,12 @@
 use defmt::*;
-use embassy_stm32::{
-    mode::Async,
-    usart::{UartRx, UartTx},
-};
-use embassy_sync::{
-    blocking_mutex::raw::ThreadModeRawMutex as Cs,
-    watch::{self},
-};
-use embassy_time::{Duration, Ticker, WithTimeout};
-use love_letter::{SETPOINT_BYTES, deserialize_setpoint, serialize_report};
-
-use crate::{Report, Setpoint};
+use embassy_stm32::usart::{BufferedUartRx, BufferedUartTx};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, pipe};
+use embassy_time::{Duration, WithTimeout};
+use embedded_io_async::Read;
+use embedded_io_async::Write;
 
 /// Period at which this task is ticked
-const TASK_PERIOD: Duration = Duration::from_millis(100);
+const TASK_PERIOD: Duration = Duration::from_millis(10);
 /// Time we remain patient before deciding the host is gone and we need to take matters into our
 /// own hands
 const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
@@ -21,104 +14,64 @@ const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
 const REPORT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
 
 #[embassy_executor::task]
-/// Forward firmware state reports to the HHH host every
+/// Forward firmware state reports to the HHH host
 pub async fn forward_reports(
-    mut uart_tx: UartTx<'static, Async>,
-    mut report_receiver: watch::Receiver<'static, Cs, Report, 1>,
+    mut uart_tx: BufferedUartTx<'static>,
+    report_pipe_rx: pipe::Reader<'static, Cs, { love_letter::REPORT_BYTES * 4 }>,
 ) {
-    let mut ticker = Ticker::every(TASK_PERIOD);
+    let mut buf = [0u8; 64];
 
     loop {
-        // Wait to receive a new report
-        if let Ok(ref report) = report_receiver
-            .changed()
-            .with_timeout(REPORT_RECEIVE_TIMEOUT)
-            .await
-        {
-            // Serialise received report
-            let mut buf = [0u8; love_letter::REPORT_BYTES];
-            match serialize_report(report.clone(), &mut buf) {
-                Ok(buf) => {
-                    // Send serialized report to host
-                    info!(
-                        "COMMS - forward_reports: sending serialised report to host: {:?}",
-                        buf
-                    );
-                    if let Err(err) = uart_tx.write(buf).await {
-                        error!(
-                            "COMMS - forward_reports: Error sending uart frame {:?}: {}",
-                            buf, err
-                        );
-                    }
-                }
-                Err(err) => {
-                    error!(
-                        "COMMS - forward_reports: Error serializing report {:?}: {}",
-                        report, err
-                    );
-                }
-            }
-        } else {
-            // our firmware seems to be toast
+        // Get latest serialised report from the framing task
+        let n = report_pipe_rx.read(&mut buf).await;
+        info!("COMMS - forward_reports: writing {} bytes to UART", n);
+        if let Err(err) = uart_tx.write_all(&buf[..n]).await {
             error!(
-                "COMMS - forward_reports: timeout waiting for report to arrive from control task, nothing to do but continue...",
+                "COMMS - forward_reports: {} unable to write serialised report bytes {:?} to UART",
+                err,
+                buf[..n]
             );
         }
-        ticker.next().await;
     }
 }
 
 #[embassy_executor::task]
-/// Process any new setpoints received from the host as soon as they come in
+/// Collects UART bytes into a pipe for later processing in framing_task
 pub async fn receive_setpoints(
-    mut uart_rx: UartRx<'static, Async>,
-    setpoint_sender: watch::Sender<'static, Cs, Setpoint, 1>,
+    mut uart_rx: BufferedUartRx<'static>,
+    mut setpoint_pipe_tx: pipe::Writer<'static, Cs, { love_letter::SETPOINT_BYTES * 4 }>,
 ) {
+    let mut buf = [0u8; 64];
+
     loop {
-        // Receive setpoint
-        let mut buf = [0u8; SETPOINT_BYTES];
-        if let Ok(uart_result) = uart_rx
+        // Receive a full serialised setpoint message size worth of bytes
+        match uart_rx
             .read(&mut buf)
             .with_timeout(SETPOINT_RECEIVE_TIMEOUT)
             .await
         {
-            match uart_result {
-                Ok(_) => {
-                    info!(
-                        "COMMS - receive_setpoints: read {} bytes ({})",
-                        buf.len(),
-                        buf
-                    );
+            Ok(Ok(n)) => {
+                debug!(
+                    "COMMS - receive_setpoints: received setpoint {} bytes {:?}",
+                    n,
+                    buf[..n]
+                );
 
-                    match deserialize_setpoint(&mut buf) {
-                        Ok(setpoint) => {
-                            info!(
-                                "COMMS - receive_setpoints: sending deserialised setpoint {:?}",
-                                setpoint
-                            );
-
-                            setpoint_sender.send(setpoint);
-                        }
-                        Err(err) => {
-                            error!(
-                                "COMMS - receive_setpoints: error deserialising setpoint from host: {}, skipping...",
-                                err
-                            );
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!(
-                        "COMMS - receive_setpoints: error receiving setpoint from host: {}, skipping...",
-                        e
-                    );
-                }
+                // Yeet the setpoint bytes into a pipe for later deserialisation
+                let _ = setpoint_pipe_tx.write_all(&buf[..n]).await;
             }
-        } else {
-            // our host seems to be toast
-            error!(
-                "COMMS - receive_setpoints: timeout waiting for setpoint from RPI3 host, nothing to do but continue...",
-            );
+            Ok(Err(err)) => {
+                error!(
+                    "COMMS - receive_setpoints: {} error receiving setpoint from host, skipping...",
+                    err
+                );
+            }
+            Err(err) => {
+                error!(
+                    "COMMS - receive_setpoints: {} TIMEOUT receiving setpoint from host, I feel lonely :(",
+                    err
+                );
+            }
         }
     }
 }

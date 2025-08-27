@@ -1,4 +1,4 @@
-use embassy_stm32::adc::Adc;
+ustm32f103c6stm32f103c6se embassy_stm32::adc::Adc;
 use embassy_stm32::gpio::{Level, Output, Speed};
 use embassy_stm32::mode::Async;
 use embassy_stm32::usart::{self, Config, Uart};

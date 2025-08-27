@@ -20,6 +20,8 @@ serde = { version = "1.0.219", default-features = false, features = ["serde_deri
 uom = { version = "0.37.0", default-features = false, features = ["serde", "si", "u32"] }
 chrono = { version = "0.4.41", features = ["serde"], default-features = false }
 love-letter = { path = "../love-letter" }
+embedded-io-async = { version = "0.6.1", features = ["defmt-03"] }
+static_cell = "2.1.1"
 # love-letter = { git = "ssh://git@bitbucket.org/mechatronica/love_letter.git" }
 
 # embassy-stm32 provides our HAL

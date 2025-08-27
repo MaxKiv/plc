@@ -6,7 +6,7 @@ use love_letter::{AppState, Report, Setpoint};
 use crate::adc_task::AdcFrame;
 
 /// Period at which this task is ticked
-const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(100);
+const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(10);
 
 /// Emergency stop routine
 /// Pneumatic heart controller routine
@@ -27,7 +27,16 @@ pub async fn control_loop(
         if let Ok(frame) = frame_in.try_receive() {
             info!("CONTROL: received new adc frame: {:?}", frame);
 
-            let setpoint = setpoint_in.try_get().unwrap_or_default();
+            let setpoint = match setpoint_in.try_get() {
+                Some(setpoint) => {
+                    info!("CONTROL: received setpoint {:?}", setpoint);
+                    setpoint
+                }
+                None => {
+                    warn!("CONTROL: unable to collect latest setpoint, using default");
+                    Setpoint::default()
+                }
+            };
 
             // Collect mockloop state and latest measurements into a report
             let report = Report {
