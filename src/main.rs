@@ -27,7 +27,6 @@ static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
 static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
 static REPORT_WATCH: Watch<Cs, Report, 1> = Watch::new();
 static SETPOINT_WATCH: Watch<Cs, Setpoint, 1> = Watch::new();
-static TIME_WATCH: Watch<Cs, Setpoint, 1> = Watch::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {

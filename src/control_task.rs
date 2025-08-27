@@ -6,7 +6,7 @@ use love_letter::{AppState, Report, Setpoint};
 use crate::adc_task::AdcFrame;
 
 /// Period at which this task is ticked
-const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(1000);
+const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(100);
 
 /// Emergency stop routine
 /// Pneumatic heart controller routine

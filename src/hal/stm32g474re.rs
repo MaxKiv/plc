@@ -71,14 +71,11 @@ impl Hal {
 
         let button = Input::new(p.PC13, Pull::Down);
 
+        let mut uart_cfg = usart::Config::default();
+        uart_cfg.baudrate = 921600;
+
         let uart = Uart::new(
-            p.USART2,
-            p.PB4,
-            p.PB3,
-            Irqs,
-            p.DMA2_CH1,
-            p.DMA2_CH2,
-            usart::Config::default(),
+            p.USART2, p.PB4, p.PB3, Irqs, p.DMA2_CH1, p.DMA2_CH2, uart_cfg,
         )
         .unwrap();
 

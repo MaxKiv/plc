@@ -8,12 +8,12 @@ use embassy_sync::{
     watch::{self},
 };
 use embassy_time::{Duration, Ticker, WithTimeout};
-use love_letter::{deserialize_setpoint, serialize_report};
+use love_letter::{SETPOINT_BYTES, deserialize_setpoint, serialize_report};
 
 use crate::{Report, Setpoint};
 
 /// Period at which this task is ticked
-const TASK_PERIOD: Duration = Duration::from_millis(10);
+const TASK_PERIOD: Duration = Duration::from_millis(100);
 /// Time we remain patient before deciding the host is gone and we need to take matters into our
 /// own hands
 const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
@@ -76,15 +76,19 @@ pub async fn receive_setpoints(
 ) {
     loop {
         // Receive setpoint
-        let mut buf = [0u8; 32];
+        let mut buf = [0u8; SETPOINT_BYTES];
         if let Ok(uart_result) = uart_rx
             .read(&mut buf)
             .with_timeout(SETPOINT_RECEIVE_TIMEOUT)
             .await
         {
             match uart_result {
-                Ok(len) => {
-                    info!("COMMS - receive_setpoints: read {} byte ({})", len, buf);
+                Ok(_) => {
+                    info!(
+                        "COMMS - receive_setpoints: read {} bytes ({})",
+                        buf.len(),
+                        buf
+                    );
 
                     match deserialize_setpoint(&mut buf) {
                         Ok(setpoint) => {
