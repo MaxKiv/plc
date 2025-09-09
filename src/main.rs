@@ -112,6 +112,11 @@ async fn main(spawner: Spawner) {
                 .expect("max number of setpoint receivers created"),
         ))
         .unwrap();
+
+    // Sleep the main task forever, Embassys docs are not clear on what happens when main returns
+    // It seems the executor keeps running regardless
+    // However lets not rely on undocumented behavior
+    core::future::pending().await;
 }
 
 // Configure reset and clock control
