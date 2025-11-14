@@ -1,5 +1,5 @@
 {
-  description = "Development tooling for blue pilled";
+  description = "Development tooling for stm32";
 
   inputs = {
     your-nixos-flake.url = "github:maxkiv/nix";
@@ -28,7 +28,7 @@
       toolchain = with fenix.packages.${system};
         fromToolchainFile {
           file = ./rust-toolchain.toml; # alternatively, dir = ./.;
-          sha256 = "sha256-+9FmLhAOezBZCOziO0Qct1NOrfpjNsXxc/8I0c7BdKE=";
+          sha256 = "sha256-SDu4snEWjuZU475PERvu+iO50Mi39KVjqCeJeNvpguU=";
         };
     in {
       # Development shells provided by this flake, to use:
