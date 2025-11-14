@@ -3,7 +3,8 @@
 
 mod adc_task;
 mod button_task;
-mod comms_task;
+pub mod comms;
+pub mod control;
 mod control_task;
 pub mod framing_task;
 pub mod hal;
@@ -12,11 +13,11 @@ mod led_task;
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_stm32::Config;
 use embassy_stm32::rcc::{
     AHBPrescaler, APBPrescaler, Hsi48Config, LsConfig, PllMul, PllPreDiv, PllRDiv, PllSource,
     RtcClockSource, Sysclk, mux,
 };
-use embassy_stm32::{Config, rcc};
 use embassy_sync::channel::Channel;
 use embassy_sync::pipe::{self};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
@@ -25,6 +26,7 @@ use panic_probe as _;
 use static_cell::StaticCell;
 
 use crate::adc_task::AdcFrame;
+use crate::comms::connection_state::ConnectionState;
 use crate::hal::Hal;
 
 static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
@@ -85,10 +87,10 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
     spawner
-        .spawn(comms_task::forward_reports(uart_tx, report_pipe_rx))
+        .spawn(comms::task::forward_reports(uart_tx, report_pipe_rx))
         .unwrap();
     spawner
-        .spawn(comms_task::receive_setpoints(uart_rx, setpoint_pipe_tx))
+        .spawn(comms::task::receive_setpoints(uart_rx, setpoint_pipe_tx))
         .unwrap();
     spawner
         .spawn(framing_task::serialise_reports(
@@ -116,7 +118,7 @@ async fn main(spawner: Spawner) {
     // Sleep the main task forever, Embassys docs are not clear on what happens when main returns
     // It seems the executor keeps running regardless
     // However lets not rely on undocumented behavior
-    core::future::pending().await;
+    core::future::pending::<()>().await;
 }
 
 // Configure reset and clock control

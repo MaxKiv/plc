@@ -1,9 +1,12 @@
 use defmt::*;
 use embassy_stm32::usart::{BufferedUartRx, BufferedUartTx};
+use embassy_sync::watch::{self, Watch};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, pipe};
 use embassy_time::{Duration, WithTimeout};
 use embedded_io_async::Read;
 use embedded_io_async::Write;
+
+use crate::comms::connection_state::ConnectionState;
 
 /// Period at which this task is ticked
 const TASK_PERIOD: Duration = Duration::from_millis(10);
@@ -12,6 +15,8 @@ const TASK_PERIOD: Duration = Duration::from_millis(10);
 const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
 /// Time we remain patient before deciding our application is not responding
 const REPORT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
+
+pub static CONNECTION_STATE: Watch<Cs, ConnectionState, 1> = Watch::new();
 
 #[embassy_executor::task]
 /// Forward firmware state reports to the HHH host
@@ -42,6 +47,8 @@ pub async fn receive_setpoints(
     mut setpoint_pipe_tx: pipe::Writer<'static, Cs, { love_letter::SETPOINT_BYTES * 4 }>,
 ) {
     let mut buf = [0u8; 64];
+    let tx = CONNECTION_STATE.sender();
+    let mut connection_state = ConnectionState::Disconnected;
 
     loop {
         // Receive a full serialised setpoint message size worth of bytes
@@ -57,6 +64,12 @@ pub async fn receive_setpoints(
                     buf[..n]
                 );
 
+                // Now we are talking!
+                if connection_state != ConnectionState::Connected {
+                    connection_state = ConnectionState::Connected;
+                    tx.send(connection_state.clone());
+                }
+
                 // Yeet the setpoint bytes into a pipe for later deserialisation
                 let _ = setpoint_pipe_tx.write_all(&buf[..n]).await;
             }
@@ -65,12 +78,27 @@ pub async fn receive_setpoints(
                     "COMMS - receive_setpoints: {} error receiving setpoint from host, skipping...",
                     err
                 );
+
+                // Indicate issue
+                if connection_state != ConnectionState::Stale {
+                    connection_state = ConnectionState::Stale;
+                    tx.send(connection_state.clone());
+                }
             }
             Err(err) => {
-                error!(
-                    "COMMS - receive_setpoints: {} TIMEOUT receiving setpoint from host, I feel lonely :(",
-                    err
-                );
+                // error!(
+                //     "COMMS - receive_setpoints: {} TIMEOUT receiving setpoint from host, I feel lonely :(",
+                //     err
+                // );
+
+                // Track connection state
+                connection_state = match connection_state {
+                    ConnectionState::Connected => ConnectionState::Stale,
+                    ConnectionState::Stale => ConnectionState::Disconnected,
+                    ConnectionState::Disconnected => ConnectionState::Disconnected,
+                };
+
+                tx.send(connection_state.clone())
             }
         }
     }

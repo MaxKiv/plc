@@ -1,5 +1,5 @@
 [toolchain]
-channel = "stable"
+channel = "stable-2025-11-07"
 # Keep components commented unless needed
 components = ["llvm-tools-preview", "rustfmt", "clippy"]
 

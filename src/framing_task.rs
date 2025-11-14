@@ -74,13 +74,13 @@ pub async fn frame_and_serialise_setpoints(
 
                     // COBS delimiter byte: process frame
                     match love_letter::deserialize_setpoint(&mut framing_buf) {
-                        Ok(report) => {
+                        Ok(setpoint) => {
                             info!(
                                 "FRAMING - frame_setpoints: COBS delimeter detected & Deserialise succes: {:?}",
-                                report
+                                setpoint
                             );
                             // Happy path - Send deserialised setpoint to control task
-                            setpoint_sender.send(report);
+                            setpoint_sender.send(setpoint);
                         }
                         Err(err) => {
                             error!(

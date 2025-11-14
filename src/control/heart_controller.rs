@@ -1,7 +1,13 @@
 use defmt::*;
+use embassy_stm32::time::Hertz;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel, watch};
 use embassy_time::{Duration, Ticker};
-use love_letter::{AppState, Report, Setpoint};
+use love_letter::{AppState, Measurements, Report, Setpoint};
+use uom::si::{
+    f32::Pressure,
+    frequency::{cycle_per_minute, hertz},
+    pressure::bar,
+};
 
 use crate::{adc_task::AdcFrame, comms::task::CONNECTION_STATE};
 
@@ -13,50 +19,111 @@ const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(10);
 /// Mockloop controller routine
 /// Parses ADC frames into coherent [`Report`]s
 #[embassy_executor::task]
-pub async fn control_loop(
-    frame_in: channel::Receiver<'static, Cs, AdcFrame, 2>,
-    appstate_out: watch::Sender<'static, Cs, AppState, 1>,
-    report_out: watch::Sender<'static, Cs, Report, 1>,
+pub async fn heart_control_loop(
+    // appstate_out: watch::Sender<'static, Cs, AppState, 1>,
+    // report_out: watch::Sender<'static, Cs, Report, 1>,
     mut setpoint_in: watch::Receiver<'static, Cs, Setpoint, 1>,
 ) {
-    info!("starting CONTROL task");
+    info!("starting HEART CONTROL task");
 
     let mut ticker = Ticker::every(CONTROL_TASK_PERIOD);
     let connection_state_rx = CONNECTION_STATE
         .receiver()
         .expect("Update CONNECTION_STATE N");
 
-    info!("starting CONTROL loop");
+    info!("starting HEART CONTROL loop");
     loop {
-        if let Ok(frame) = frame_in.try_receive() {
-            info!("CONTROL: received new adc frame: {:?}", frame);
+        // Fetch the latest available controller setpoint
+        let setpoint = setpoint_in.get().await;
+        info!("current controller setpoint: {:?}", setpoint);
 
-            let setpoint = match setpoint_in.try_get() {
-                Some(setpoint) => {
-                    info!("CONTROL: received setpoint {:?}", setpoint);
-                    setpoint
-                }
-                None => {
-                    warn!("CONTROL: unable to collect latest setpoint, using default");
-                    Setpoint::default()
-                }
-            };
+        info!(
+            "current heart rate setpoint {} cycles per minute",
+            setpoint.heart_controller_setpoint.heart_rate.get::<hertz>()
+        );
 
-            // Collect mockloop state and latest measurements into a report
-            let report = Report {
-                setpoint,
-                app_state: calculate_appstate(),
-                measurements: frame.into_measurement(),
-            };
-            info!("CONTROL: collected report: {:?}", report);
-
-            // Send report to the host
-            report_out.send(report);
+        // Use it to control the mockloop
+        if setpoint.enable {
+            // Controller enabled -> tick the controller state machine
+            control_pressure_regulator(setpoint.heart_controller_setpoint.pressure);
+            control_ventricles(setpoint);
+        } else {
+            if let Err(err) = to_safe_state() {
+                error!("Unable to move mockloop into safe state: {}", err);
+            }
         }
 
-        debug!("CONTROL: looping");
         ticker.next().await;
     }
+}
+
+/// Set pressure regulator to the latest setpoint received for it
+fn control_pressure_regulator(pressure: Pressure) {
+    debug!("Setting regulator pressure: {:?}", pressure);
+
+    if let Err(err) = set_regulator_pressure(pressure) {
+        error!(
+            "Unable to set controller regulator pressure to {:?} bar: {:?}",
+            pressure.get::<bar>(),
+            err
+        );
+        // An invalid regulator pressure setpoint was given, set to safe value
+        let _ = self
+            .hw
+            .set_regulator_pressure(Pressure::new::<bar>(REGULATOR_MIN_PRESSURE_BAR));
+        warn!(
+            "Set controller regulator presesure to safe value: {:?} bar",
+            REGULATOR_MIN_PRESSURE_BAR
+        );
+    }
+}
+
+fn control_ventricles(&mut self, setpoint: ControllerSetpoint) {
+    // Time bookkeeping
+    let current_time = Utc::now();
+    self.time_spent_in_current_phase += current_time - self.last_cycle_time;
+    debug!(
+        "time spent in current cardiac phase: {:?}",
+        self.time_spent_in_current_phase
+    );
+
+    // Check if its time to switch cardiac phase
+    let current_cardiac_phase_duration = TimeDelta::from_std(Duration::from_secs_f64(
+        1.0 / setpoint.heart_rate.get::<hertz>()
+            * match self.current_cardiac_phase {
+                CardiacPhases::Systole => setpoint.systole_ratio,
+                CardiacPhases::Diastole => 1.0 - setpoint.systole_ratio,
+            },
+    ))
+    .unwrap();
+
+    debug!(
+        "Current phase duration {:?}",
+        current_cardiac_phase_duration
+    );
+
+    // Switch cardiac phase when necessary
+    if self.time_spent_in_current_phase > current_cardiac_phase_duration {
+        self.current_cardiac_phase = self.current_cardiac_phase.switch();
+        self.time_spent_in_current_phase = TimeDelta::zero();
+    }
+
+    // Actuate the ventricle valves according to the current cardiac phase
+    let (left_valve_setpoint, right_valve_setpoint) = match self.current_cardiac_phase {
+        CardiacPhases::Systole => (ValveState::Open, ValveState::Closed),
+        CardiacPhases::Diastole => (ValveState::Closed, ValveState::Open),
+    };
+
+    info!("Setting left valve: {:?}", left_valve_setpoint);
+    info!("Setting right valve: {:?}", right_valve_setpoint);
+    self.hw.set_valve(Valve::Left, left_valve_setpoint).unwrap();
+    self.hw
+        .set_valve(Valve::Right, right_valve_setpoint)
+        .unwrap();
+}
+
+fn to_safe_state() {
+    //
 }
 
 /// Given the current set of measurements and previous state, what is our current state?

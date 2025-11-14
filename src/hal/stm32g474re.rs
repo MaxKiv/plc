@@ -1,6 +1,8 @@
 use embassy_stm32::adc::{Adc, SampleTime};
+use embassy_stm32::dac::{Ch1, Ch2, Dac, DacChannel};
 // use embassy_stm32::dac::{Dac, DacChannel};
 use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
+use embassy_stm32::mode::Async;
 use embassy_stm32::rtc::{Rtc, RtcConfig};
 use embassy_stm32::usart::{self, BufferedUart};
 use embassy_stm32::{
@@ -20,8 +22,7 @@ static TX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 pub struct Hal {
     pub adc1: Adc<'static, ADC1>,
     pub adc2: Adc<'static, ADC2>,
-    // pub dac1: Dac<'static, DAC1>,
-    // pub dac2: Dac<'static, DAC2>,
+    pub dac1: DacChannel<'static, DAC1, Ch1, Async>,
     pub dma: Peri<'static, DMA1_CH1>,
     pub led: Output<'static>,
     pub adc_channels: AdcChannels,
@@ -37,7 +38,7 @@ pub struct AdcChannels {
     pub regulator_actual_pressure: Peri<'static, PA0>,
     pub systemic_flow: Peri<'static, PA1>,
     pub pulmonary_flow: Peri<'static, PA2>,
-    pub systemic_preload_pressure: Peri<'static, PA3>,
+    pub systemic_preload_pressure: Peri<'static, PC0>,
     pub systemic_afterload_pressure: Peri<'static, PB0>,
     pub pulmonary_preload_pressure: Peri<'static, PB1>,
     pub pulmonary_afterload_pressure: Peri<'static, PB11>,
@@ -64,7 +65,7 @@ impl Hal {
             regulator_actual_pressure: p.PA0,
             systemic_flow: p.PA1,
             pulmonary_flow: p.PA2,
-            systemic_preload_pressure: p.PA3,
+            systemic_preload_pressure: p.PC0,
             systemic_afterload_pressure: p.PB0,
             pulmonary_preload_pressure: p.PB1,
             pulmonary_afterload_pressure: p.PB11,
@@ -89,11 +90,12 @@ impl Hal {
         // Default initialize the RTC
         let rtc = Rtc::new(p.RTC, RtcConfig::default());
 
+        let dac1 = DacChannel::new(p.DAC1, p.DMA1_CH3, p.PA4);
+
         Self {
             adc1,
             adc2,
-            // dac1,
-            // dac2,
+            dac1,
             dma,
             led,
             adc_channels,
