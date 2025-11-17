@@ -1,6 +1,5 @@
 use embassy_stm32::adc::{Adc, SampleTime};
-use embassy_stm32::dac::{Ch1, Ch2, Dac, DacChannel};
-// use embassy_stm32::dac::{Dac, DacChannel};
+use embassy_stm32::dac::{Ch1, DacChannel};
 use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
 use embassy_stm32::mode::Async;
 use embassy_stm32::rtc::{Rtc, RtcConfig};
@@ -22,7 +21,9 @@ static TX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 pub struct Hal {
     pub adc1: Adc<'static, ADC1>,
     pub adc2: Adc<'static, ADC2>,
-    pub dac1: DacChannel<'static, DAC1, Ch1, Async>,
+    pub pressure_regulator_dac: DacChannel<'static, DAC1, Ch1, Async>,
+    pub left_valve: Output<'static>,
+    pub right_valve: Output<'static>,
     pub dma: Peri<'static, DMA1_CH1>,
     pub led: Output<'static>,
     pub adc_channels: AdcChannels,
@@ -57,8 +58,6 @@ impl Hal {
         // info!("measured temperature: {}", measured);
 
         let adc2 = Adc::new(p.ADC2);
-        // let dac1 = Dac::new(p.DAC1, DacChannel::);
-        // let dac2 = Dac::new(p.DAC2, DacChannel::C2);
         let led = Output::new(p.PA5, Level::Low, Speed::Low);
 
         let adc_channels = AdcChannels {
@@ -90,18 +89,23 @@ impl Hal {
         // Default initialize the RTC
         let rtc = Rtc::new(p.RTC, RtcConfig::default());
 
-        let dac1 = DacChannel::new(p.DAC1, p.DMA1_CH3, p.PA4);
+        let pressure_regulator_dac = DacChannel::new(p.DAC1, p.DMA1_CH3, p.PA4);
+
+        let left_valve = Output::new(p.PC2, Level::Low, Speed::Low);
+        let right_valve = Output::new(p.PC3, Level::Low, Speed::Low);
 
         Self {
             adc1,
             adc2,
-            dac1,
+            pressure_regulator_dac,
             dma,
             led,
             adc_channels,
             button,
             uart,
             rtc,
+            left_valve,
+            right_valve,
         }
     }
 }

@@ -1,15 +1,27 @@
 use defmt::*;
+use embassy_futures::select::{Either, select};
 use embassy_stm32::time::Hertz;
-use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel, watch};
-use embassy_time::{Duration, Ticker};
-use love_letter::{AppState, Measurements, Report, Setpoint};
+use embassy_sync::{
+    blocking_mutex::raw::ThreadModeRawMutex as Cs,
+    channel,
+    watch::{self, Sender},
+};
+use embassy_time::{Duration, Instant, Ticker, Timer};
+use love_letter::{
+    AppState, HeartControllerSetpoint, Measurements, MockloopSetpoint, Report,
+    SYSTOLE_RATIO_DEFAULT, Setpoint,
+};
 use uom::si::{
-    f32::Pressure,
+    f32::{Frequency, Pressure},
     frequency::{cycle_per_minute, hertz},
     pressure::bar,
 };
 
-use crate::{adc_task::AdcFrame, comms::task::CONNECTION_STATE};
+use crate::{
+    comms::task::CONNECTION_STATE,
+    control::{error::ControlError, phase::CardiacPhase},
+    dac_task::DAC_REGULATOR_PRESSURE_WATCH,
+};
 
 /// Period at which this task is ticked
 const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(10);
@@ -22,66 +34,119 @@ const CONTROL_TASK_PERIOD: Duration = Duration::from_millis(10);
 pub async fn heart_control_loop(
     // appstate_out: watch::Sender<'static, Cs, AppState, 1>,
     // report_out: watch::Sender<'static, Cs, Report, 1>,
-    mut setpoint_in: watch::Receiver<'static, Cs, Setpoint, 1>,
+    mut setpoint_rx: watch::Receiver<'static, Cs, Setpoint, 1>,
 ) {
     info!("starting HEART CONTROL task");
 
     let mut ticker = Ticker::every(CONTROL_TASK_PERIOD);
+
+    // Time spent in current cardiac phase
+    let mut time_in_phase = Duration::from_nanos(0);
+    let mut current_phase = CardiacPhase::Systole;
+
     let connection_state_rx = CONNECTION_STATE
         .receiver()
         .expect("Update CONNECTION_STATE N");
+    let regulator_pressure_tx = DAC_REGULATOR_PRESSURE_WATCH.sender();
+
+    info!("HEART CONTROL: Moving mockloop into safe state");
+    to_safe_state();
+
+    info!("HEART CONTROL: Waiting for initial setpoint");
+    let setpoint @ Setpoint {
+        enable,
+        mockloop_setpoint,
+        heart_controller_setpoint,
+    } = setpoint_rx.changed().await;
+
+    let mut prev_time = Instant::now();
 
     info!("starting HEART CONTROL loop");
     loop {
-        // Fetch the latest available controller setpoint
-        let setpoint = setpoint_in.get().await;
-        info!("current controller setpoint: {:?}", setpoint);
+        // Update time spent in current phase
+        time_in_phase += Instant::now() - prev_time;
 
-        info!(
-            "current heart rate setpoint {} cycles per minute",
-            setpoint.heart_controller_setpoint.heart_rate.get::<hertz>()
+        // Calculate total time we need to spend in current phase
+        let total_phase_time = current_phase.get_total_phase_time(
+            heart_controller_setpoint.heart_rate,
+            heart_controller_setpoint.systole_ratio,
         );
 
-        // Use it to control the mockloop
-        if setpoint.enable {
-            // Controller enabled -> tick the controller state machine
-            control_pressure_regulator(setpoint.heart_controller_setpoint.pressure);
-            control_ventricles(setpoint);
-        } else {
-            if let Err(err) = to_safe_state() {
-                error!("Unable to move mockloop into safe state: {}", err);
-            }
+        // Are we ready to switch to a new cardiac phase?
+        if time_in_phase >= total_phase_time {
+            // We are! Make the switch
+            current_phase = current_phase.switch();
+
+            // We entered a new phase: redo the total phase time calculation
+            total_phase_time = current_phase.get_total_phase_time(
+                heart_controller_setpoint.heart_rate,
+                heart_controller_setpoint.systole_ratio,
+            );
+
+            // Reset time spend in current phase
+            time_in_phase = Duration::from_nanos(0);
         }
 
-        ticker.next().await;
+        // Control actuators to effect current cardiac phase
+        actuate_cardiac_phase(current_phase, setpoint, &regulator_pressure_tx).await;
+
+        // Timekeeping
+        prev_time = Instant::now();
+
+        // Now wait until either:
+        // A: We are ready to switch cardiac phase again
+        let wait_for_next_phase = Timer::after(total_phase_time);
+        // B: We receive a new setpoint
+        let res = select(wait_for_next_phase, setpoint_rx.changed()).await;
+        match res {
+            // A: ready to switch cardiac phase
+            Either::First(_) => { /* timed out: continue*/ }
+            // B: Received a new setpoint; cancel wait and redo above calculations
+            Either::Second(new_setpoint) => {
+                /* update current setpoint and continue */
+                setpoint = new_setpoint;
+            }
+        }
+    }
+}
+
+async fn actuate_cardiac_phase(
+    current_phase: CardiacPhase,
+    setpoint: Setpoint,
+    regulator_tx: &watch::Sender<'static, Cs, Pressure, 1>,
+) -> _ {
+    if setpoint.enable {
+        let hc = setpoint.heart_controller_setpoint;
+        control_pressure_regulator(hc.pressure, regulator_tx);
+        control_ventricle_valves()
+    } else {
     }
 }
 
 /// Set pressure regulator to the latest setpoint received for it
-fn control_pressure_regulator(pressure: Pressure) {
-    debug!("Setting regulator pressure: {:?}", pressure);
+fn control_pressure_regulator(pressure: Pressure, tx: &watch::Sender<'static, Cs, Pressure, 1>) {
+    debug!("Controlling regulator pressure to: {:?}", pressure);
 
-    if let Err(err) = set_regulator_pressure(pressure) {
-        error!(
-            "Unable to set controller regulator pressure to {:?} bar: {:?}",
-            pressure.get::<bar>(),
-            err
-        );
-        // An invalid regulator pressure setpoint was given, set to safe value
-        let _ = self
-            .hw
-            .set_regulator_pressure(Pressure::new::<bar>(REGULATOR_MIN_PRESSURE_BAR));
-        warn!(
-            "Set controller regulator presesure to safe value: {:?} bar",
-            REGULATOR_MIN_PRESSURE_BAR
-        );
-    }
+    tx.send(pressure);
 }
 
-fn control_ventricles(&mut self, setpoint: ControllerSetpoint) {
+fn control_ventricle_valves(current_phase: CardiacPhase) {
+    // Actuate the ventricle valves according to the current cardiac phase
+    let (left_valve_setpoint, right_valve_setpoint) = match current_phase {
+        CardiacPhase::Systole => (ValveState::Open, ValveState::Closed),
+        CardiacPhase::Diastole => (ValveState::Closed, ValveState::Open),
+    };
+}
+
+fn control_ventricles() {
     // Time bookkeeping
-    let current_time = Utc::now();
-    self.time_spent_in_current_phase += current_time - self.last_cycle_time;
+    let current_time = Instant::now();
+    self.time_spent_in_current_phase += current_time - LAST_CYCLE_TIME;
+    info!(
+        "current heart rate setpoint {} cycles per minute",
+        setpoint.heart_controller_setpoint.heart_rate.get::<hertz>()
+    );
+
     debug!(
         "time spent in current cardiac phase: {:?}",
         self.time_spent_in_current_phase
@@ -91,8 +156,8 @@ fn control_ventricles(&mut self, setpoint: ControllerSetpoint) {
     let current_cardiac_phase_duration = TimeDelta::from_std(Duration::from_secs_f64(
         1.0 / setpoint.heart_rate.get::<hertz>()
             * match self.current_cardiac_phase {
-                CardiacPhases::Systole => setpoint.systole_ratio,
-                CardiacPhases::Diastole => 1.0 - setpoint.systole_ratio,
+                CardiacPhase::Systole => setpoint.systole_ratio,
+                CardiacPhase::Diastole => 1.0 - setpoint.systole_ratio,
             },
     ))
     .unwrap();
@@ -110,8 +175,8 @@ fn control_ventricles(&mut self, setpoint: ControllerSetpoint) {
 
     // Actuate the ventricle valves according to the current cardiac phase
     let (left_valve_setpoint, right_valve_setpoint) = match self.current_cardiac_phase {
-        CardiacPhases::Systole => (ValveState::Open, ValveState::Closed),
-        CardiacPhases::Diastole => (ValveState::Closed, ValveState::Open),
+        CardiacPhase::Systole => (ValveState::Open, ValveState::Closed),
+        CardiacPhase::Diastole => (ValveState::Closed, ValveState::Open),
     };
 
     info!("Setting left valve: {:?}", left_valve_setpoint);
@@ -123,7 +188,10 @@ fn control_ventricles(&mut self, setpoint: ControllerSetpoint) {
 }
 
 fn to_safe_state() {
-    //
+    const REGULATOR_SAFE_PRESSURE_BAR: f32 = 0.0;
+    const VENTRICLE_SAFE_POSITION: bool = false;
+    false.control_pressure_regulator(Pressure::new::<bar>(REGULATOR_SAFE_PRESSURE_BAR));
+    control_ventricles(&mut self, setpoint);
 }
 
 /// Given the current set of measurements and previous state, what is our current state?

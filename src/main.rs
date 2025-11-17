@@ -6,9 +6,11 @@ mod button_task;
 pub mod comms;
 pub mod control;
 mod control_task;
+pub mod dac_task;
 pub mod framing_task;
 pub mod hal;
 mod led_task;
+pub mod valve_task;
 
 use defmt::*;
 use defmt_rtt as _;
