@@ -4,12 +4,12 @@
 mod adc_task;
 mod button_task;
 pub mod comms;
-pub mod control;
-mod control_task;
 pub mod dac_task;
 pub mod framing_task;
 pub mod hal;
+pub mod heart_control;
 mod led_task;
+mod reporting_task;
 pub mod valve_task;
 
 use defmt::*;
@@ -28,13 +28,12 @@ use panic_probe as _;
 use static_cell::StaticCell;
 
 use crate::adc_task::AdcFrame;
-use crate::comms::connection_state::ConnectionState;
 use crate::hal::Hal;
 
 static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
 static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
 static REPORT_WATCH: Watch<Cs, Report, 1> = Watch::new();
-static SETPOINT_WATCH: Watch<Cs, Setpoint, 1> = Watch::new();
+static SETPOINT_WATCH: Watch<Cs, Setpoint, 2> = Watch::new();
 static REPORT_PIPE: StaticCell<pipe::Pipe<Cs, { love_letter::REPORT_BYTES * 4 }>> =
     StaticCell::new();
 static SETPOINT_PIPE: StaticCell<pipe::Pipe<Cs, { love_letter::SETPOINT_BYTES * 4 }>> =
@@ -107,20 +106,21 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
     spawner
-        .spawn(control_task::control_loop(
+        .spawn(reporting_task::collect_and_publish_reports(
             ADC_CHAN.receiver(),
-            APPSTATE_WATCH.sender(),
             REPORT_WATCH.sender(),
             SETPOINT_WATCH
                 .receiver()
                 .expect("max number of setpoint receivers created"),
         ))
         .unwrap();
-
-    // Sleep the main task forever, Embassys docs are not clear on what happens when main returns
-    // It seems the executor keeps running regardless
-    // However lets not rely on undocumented behavior
-    core::future::pending::<()>().await;
+    spawner
+        .spawn(heart_control::heart_controller::heart_control_loop(
+            SETPOINT_WATCH
+                .receiver()
+                .expect("max number of setpoint receivers created"),
+        ))
+        .unwrap();
 }
 
 // Configure reset and clock control

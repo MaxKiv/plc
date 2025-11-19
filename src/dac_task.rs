@@ -13,13 +13,13 @@ pub static DAC_REGULATOR_PRESSURE_WATCH: Watch<Cs, Pressure, 1> = Watch::new();
 pub async fn write_dac(mut pressure_regulator_dac: DacChannel<'static, DAC1, Ch1, Async>) {
     info!("starting DAC task");
 
-    let rx = DAC_REGULATOR_PRESSURE_WATCH
+    let mut rx = DAC_REGULATOR_PRESSURE_WATCH
         .receiver()
         .expect("increase pressure reg watch size");
 
     info!("starting DAC loop");
     loop {
-        let pressure_setpoint = rx.wait().await;
+        let pressure_setpoint = rx.changed().await;
 
         info!(
             "DAC: setting regulator pressure to {:?}bar",

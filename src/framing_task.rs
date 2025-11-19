@@ -43,7 +43,7 @@ pub async fn serialise_reports(
 #[embassy_executor::task]
 /// Frame the Pipe containing the UART byte stream from the comms task into [`Setpoint`]s and notify the control task
 pub async fn frame_and_serialise_setpoints(
-    setpoint_sender: watch::Sender<'static, Cs, Setpoint, 1>,
+    setpoint_sender: watch::Sender<'static, Cs, Setpoint, 2>,
     setpoint_pipe_tx: pipe::Reader<'static, Cs, { love_letter::SETPOINT_BYTES * 4 }>,
 ) {
     let mut framing_buf = heapless::Vec::<u8, { love_letter::SETPOINT_BYTES * 4 }>::new();

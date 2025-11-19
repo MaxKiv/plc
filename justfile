@@ -1,4 +1,8 @@
 openocd:
     openocd -f interface/stlink.cfg -f target/stm32g4x.cfg
 
-debug:
+check:
+    cargo check
+
+run:
+    cargo run
