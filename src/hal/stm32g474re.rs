@@ -1,5 +1,5 @@
 use embassy_stm32::adc::{Adc, SampleTime};
-use embassy_stm32::dac::{Ch1, DacChannel};
+use embassy_stm32::dac::{Ch1, Dac, DacChannel};
 use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
 use embassy_stm32::mode::Async;
 use embassy_stm32::rtc::{Rtc, RtcConfig};
@@ -89,7 +89,9 @@ impl Hal {
         // Default initialize the RTC
         let rtc = Rtc::new(p.RTC, RtcConfig::default());
 
-        let pressure_regulator_dac = DacChannel::new(p.DAC1, p.DMA1_CH3, p.PA4);
+        let (pressure_regulator_dac, systemic_compliance_dac) =
+            Dac::new(p.DAC1, p.DMA1_CH3, p.DMA1_CH4, p.PA4, p.pa5).split();
+        let pulmonary_compliance_dac = DacChannel::new(p.DAC2, p.DMA1_CH5, p.PA6);
 
         let left_valve = Output::new(p.PC2, Level::Low, Speed::Low);
         let right_valve = Output::new(p.PC3, Level::Low, Speed::Low);

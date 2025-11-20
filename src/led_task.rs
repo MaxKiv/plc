@@ -46,16 +46,16 @@ pub async fn blink_led(
             remaining_task_period = remaining.checked_sub(LED_TASK_TICK_PERIOD);
         }
 
-        debug!("LED: remaining led period {}", remaining_task_period);
+        trace!("LED: remaining led period {}", remaining_task_period);
 
         if remaining_task_period.is_none() {
-            debug!("LED: current led cycle finished: toggling LED");
+            trace!("LED: current led cycle finished: toggling LED");
             led.toggle();
             remaining_task_period = Some(get_led_blink_period(current_app_state));
-            debug!("LED: new remaining led period: {}", remaining_task_period);
+            trace!("LED: new remaining led period: {}", remaining_task_period);
         }
 
-        debug!("LED: looping");
+        trace!("LED: looping");
         ticker.next().await;
     }
 }

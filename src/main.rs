@@ -1,15 +1,16 @@
 #![no_std]
 #![no_main]
 
-mod adc_task;
-mod button_task;
+pub mod adc_task;
+pub mod button_task;
 pub mod comms;
 pub mod dac_task;
 pub mod framing_task;
 pub mod hal;
 pub mod heart_control;
-mod led_task;
-mod reporting_task;
+pub mod led_task;
+pub mod loop_control;
+pub mod reporting_task;
 pub mod valve_task;
 
 use defmt::*;
@@ -33,7 +34,7 @@ use crate::hal::Hal;
 static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
 static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
 static REPORT_WATCH: Watch<Cs, Report, 1> = Watch::new();
-static SETPOINT_WATCH: Watch<Cs, Setpoint, 2> = Watch::new();
+static SETPOINT_WATCH: Watch<Cs, Setpoint, 3> = Watch::new();
 static REPORT_PIPE: StaticCell<pipe::Pipe<Cs, { love_letter::REPORT_BYTES * 4 }>> =
     StaticCell::new();
 static SETPOINT_PIPE: StaticCell<pipe::Pipe<Cs, { love_letter::SETPOINT_BYTES * 4 }>> =
@@ -111,11 +112,21 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
     spawner
+        .spawn(loop_control::loop_controller::mockloop_control_loop(
+            SETPOINT_WATCH
+                .receiver()
+                .expect("max number of setpoint receivers created"),
+        ))
+        .unwrap();
+    spawner
         .spawn(heart_control::heart_controller::heart_control_loop(
             SETPOINT_WATCH
                 .receiver()
                 .expect("max number of setpoint receivers created"),
         ))
+        .unwrap();
+    spawner
+        .spawn(dac_task::write_dac(hal.pressure_regulator_dac))
         .unwrap();
 }
 

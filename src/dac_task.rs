@@ -31,6 +31,7 @@ pub async fn write_dac(mut pressure_regulator_dac: DacChannel<'static, DAC1, Ch1
     }
 }
 
+#[derive(Debug, defmt::Format)]
 pub struct RegulatorSetpoint {
     pressure: u16,
 }
@@ -54,8 +55,8 @@ impl RegulatorSetpoint {
         let setpoint = RegulatorSetpoint { pressure };
 
         trace!(
-            "converted pressure: {:?} into DAC setpoint: {:?}",
-            from, setpoint
+            "converted pressure: {:?}bar into DAC setpoint: {:?}",
+            from, setpoint,
         );
 
         setpoint
@@ -69,8 +70,9 @@ impl RegulatorSetpoint {
         let pressure = Pressure::new::<bar>(converted);
 
         trace!(
-            "converted DAC setpoint: {:?} into pressure: {:?}",
-            self.pressure, pressure
+            "converted DAC pressure setpoint: {:?} into pressure: {:?}bar",
+            self.pressure,
+            pressure.get::<bar>()
         );
 
         pressure

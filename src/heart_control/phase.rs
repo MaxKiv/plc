@@ -1,9 +1,10 @@
+use defmt::debug;
 use embassy_time::Duration;
 use uom::si::{f32::Frequency, frequency::hertz};
 
 /// Phases of the heart ventricles
 /// Systole = ventricle contraction, Diastole = ventricle relaxation
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum CardiacPhase {
     Systole,
     Diastole,
@@ -18,18 +19,33 @@ impl CardiacPhase {
     }
 
     pub fn get_total_phase_time(&self, heart_rate: Frequency, systole_ratio: f32) -> Duration {
-        const NS_IN_SEC: f32 = 1_000_000_000.0;
+        debug!(
+            "getting total phase time for {}hz and {} sys/diastole ratio",
+            heart_rate.get::<hertz>(),
+            systole_ratio
+        );
+
+        const US_IN_SEC: f32 = 1_000_000.0;
 
         let heart_rate_hz = heart_rate.get::<hertz>();
 
-        let full_cycle_period_ns = 1.0 / heart_rate_hz * NS_IN_SEC;
+        let full_cycle_period_us = 1.0 / heart_rate_hz * US_IN_SEC;
+
+        debug!("full_cycle_period_us: {}", full_cycle_period_us);
 
         let ratio = match self {
             CardiacPhase::Systole => systole_ratio,
             CardiacPhase::Diastole => 1.0 - systole_ratio,
         };
 
-        Duration::from_nanos((full_cycle_period_ns * ratio) as u64)
+        if full_cycle_period_us == f32::INFINITY {
+            debug!("full_cycle_period_us == INF -> {}", Duration::MAX);
+            Duration::MAX
+        } else {
+            let out = (full_cycle_period_us * ratio) as u64;
+            debug!("full_cycle_period_us != INF -> {}", out);
+            Duration::from_micros(out)
+        }
     }
 }
 

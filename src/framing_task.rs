@@ -43,7 +43,7 @@ pub async fn serialise_reports(
 #[embassy_executor::task]
 /// Frame the Pipe containing the UART byte stream from the comms task into [`Setpoint`]s and notify the control task
 pub async fn frame_and_serialise_setpoints(
-    setpoint_sender: watch::Sender<'static, Cs, Setpoint, 2>,
+    setpoint_sender: watch::Sender<'static, Cs, Setpoint, 3>,
     setpoint_pipe_tx: pipe::Reader<'static, Cs, { love_letter::SETPOINT_BYTES * 4 }>,
 ) {
     let mut framing_buf = heapless::Vec::<u8, { love_letter::SETPOINT_BYTES * 4 }>::new();
@@ -61,7 +61,7 @@ pub async fn frame_and_serialise_setpoints(
                 // Happy path - Read single byte
                 let byte = buf[0];
 
-                debug!(
+                trace!(
                     "FRAMING - frame_setpoints: read byte from setpoint_pipe_tx: {}",
                     byte
                 );
@@ -92,7 +92,7 @@ pub async fn frame_and_serialise_setpoints(
                     // Reset current frame
                     framing_buf.clear();
                 } else {
-                    debug!("FRAMING - frame_setpoints: data byte: {}", byte);
+                    trace!("FRAMING - frame_setpoints: data byte: {}", byte);
                     // Data byte: add to frame
                     if let Err(byte) = framing_buf.push(byte) {
                         error!(

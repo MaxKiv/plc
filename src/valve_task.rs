@@ -9,7 +9,7 @@ use embassy_sync::{
 pub static LEFT_VALVE_WATCH: Watch<Cs, ValveState, 1> = Watch::new();
 pub static RIGHT_VALVE_WATCH: Watch<Cs, ValveState, 1> = Watch::new();
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, defmt::Format)]
 pub enum ValveState {
     Pressure,
     Vacuum,

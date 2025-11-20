@@ -13,7 +13,7 @@ const REPORT_PERIOD: Duration = Duration::from_millis(100);
 pub async fn collect_and_publish_reports(
     frame_in: channel::Receiver<'static, Cs, AdcFrame, 2>,
     report_out: watch::Sender<'static, Cs, Report, 1>,
-    mut setpoint_rx: watch::Receiver<'static, Cs, Setpoint, 2>,
+    mut setpoint_rx: watch::Receiver<'static, Cs, Setpoint, 3>,
 ) {
     info!("starting REPORT task");
     let mut ticker = Ticker::every(REPORT_PERIOD);
