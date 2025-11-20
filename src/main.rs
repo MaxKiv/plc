@@ -47,7 +47,7 @@ async fn main(spawner: Spawner) {
     configure_rcc(&mut config);
 
     let p = embassy_stm32::init(config);
-    info!("Default configuration applied");
+    info!("Base peripherals constructed");
 
     let hal = Hal::new(p);
     info!("Board specific HAL constructed");
@@ -74,9 +74,7 @@ async fn main(spawner: Spawner) {
     spawner
         .spawn(led_task::blink_led(
             hal.led,
-            APPSTATE_WATCH
-                .receiver()
-                .expect("Creating a watch receiver should work"),
+            APPSTATE_WATCH.receiver().expect("Update appstate watch N"),
         ))
         .unwrap();
     spawner
@@ -109,9 +107,7 @@ async fn main(spawner: Spawner) {
         .spawn(reporting_task::collect_and_publish_reports(
             ADC_CHAN.receiver(),
             REPORT_WATCH.sender(),
-            SETPOINT_WATCH
-                .receiver()
-                .expect("max number of setpoint receivers created"),
+            SETPOINT_WATCH.receiver().expect("Update setpoint watch N"),
         ))
         .unwrap();
     spawner
