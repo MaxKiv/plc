@@ -39,7 +39,7 @@ pub async fn collect_and_publish_reports(
         // Send report to the host
         report_out.send(report);
 
-        debug!("REPORT: looping");
+        trace!("REPORT: looping");
         // Crude attempt to slow down generated reports, this could be removed in the future
         ticker.next().await;
     }

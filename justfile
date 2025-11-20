@@ -6,3 +6,6 @@ check:
 
 run:
     cargo run
+
+attach:
+    probe-rs attach --chip STM32G474RE ./target/thumbv7em-none-eabihf/debug/plc-lite

@@ -7,7 +7,7 @@ use uom::si::{f32::Pressure, pressure::bar};
 
 use crate::{
     comms::task::CONNECTION_STATE,
-    dac_task::DAC_REGULATOR_PRESSURE_WATCH,
+    dac::dac_task::DAC_HEART_PRESSURE_WATCH,
     heart_control::phase::CardiacPhase,
     valve_task::{LEFT_VALVE_WATCH, RIGHT_VALVE_WATCH, ValveState},
 };
@@ -26,7 +26,7 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
         .receiver()
         .expect("Update CONNECTION_STATE N");
 
-    let regulator_pressure_tx = DAC_REGULATOR_PRESSURE_WATCH.sender();
+    let regulator_pressure_tx = DAC_HEART_PRESSURE_WATCH.sender();
     let valve_left_tx = LEFT_VALVE_WATCH.sender();
     let valve_right_tx = RIGHT_VALVE_WATCH.sender();
 
@@ -121,8 +121,8 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
 /// Heart Controller is enabled: Actuate the valve and pressure regulator
 async fn actuate_cardiac_phase(
     current_phase: &CardiacPhase,
-    pressure: Pressure,
-    pressure_tx: &watch::Sender<'static, Cs, Pressure, 1>,
+    heart_pressure: Pressure,
+    heart_pressure_tx: &watch::Sender<'static, Cs, Pressure, 1>,
     valve_left_tx: &watch::Sender<'static, Cs, ValveState, 1>,
     valve_right_tx: &watch::Sender<'static, Cs, ValveState, 1>,
 ) {
@@ -134,11 +134,11 @@ async fn actuate_cardiac_phase(
         "HEART CONTROL: Enabled - actuating valves ({:?}, {:?}) and pressure regulator ({:?}bar)",
         left_valve_setpoint,
         right_valve_setpoint,
-        pressure.get::<bar>()
+        heart_pressure.get::<bar>()
     );
 
     // Actuate the pressure regulator
-    control_pressure_regulator(pressure, pressure_tx);
+    control_pressure_regulator(heart_pressure, heart_pressure_tx);
 
     // Actuate the ventricle valves according to the current cardiac phase
     control_ventricle_valves(
@@ -176,20 +176,20 @@ fn control_ventricle_valves(
 
 /// Sets the valves and pressure regulator into a safe state
 fn to_safe_heart_state(
-    pressure_tx: &watch::Sender<'static, Cs, Pressure, 1>,
+    heart_pressure_tx: &watch::Sender<'static, Cs, Pressure, 1>,
     valve_left_tx: &watch::Sender<'static, Cs, ValveState, 1>,
     valve_right_tx: &watch::Sender<'static, Cs, ValveState, 1>,
 ) {
     /// 0 bar pressure seems like the safest state for the solenoid
-    const REGULATOR_SAFE_PRESSURE_BAR: f32 = 0.0;
+    const HEART_REGULATOR_SAFE_PRESSURE_BAR: f32 = 0.0;
     /// Safest solenoid state. Alternative is Vacuum which seems less safe
     const SAFE_SOLENOID_STATE: ValveState = ValveState::Pressure;
 
     trace!("HEART CONTROL: to SAFE state",);
 
     control_pressure_regulator(
-        Pressure::new::<bar>(REGULATOR_SAFE_PRESSURE_BAR),
-        pressure_tx,
+        Pressure::new::<bar>(HEART_REGULATOR_SAFE_PRESSURE_BAR),
+        heart_pressure_tx,
     );
     control_ventricle_valves(
         SAFE_SOLENOID_STATE,

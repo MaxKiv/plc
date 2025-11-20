@@ -58,7 +58,7 @@ pub async fn receive_setpoints(
             .await
         {
             Ok(Ok(n)) => {
-                debug!(
+                trace!(
                     "COMMS - receive_setpoints: received setpoint {} bytes {:?}",
                     n,
                     buf[..n]
@@ -86,10 +86,10 @@ pub async fn receive_setpoints(
                 }
             }
             Err(err) => {
-                // error!(
-                //     "COMMS - receive_setpoints: {} TIMEOUT receiving setpoint from host, I feel lonely :(",
-                //     err
-                // );
+                error!(
+                    "COMMS - receive_setpoints: {} TIMEOUT receiving setpoint from host, I feel lonely :(",
+                    err
+                );
 
                 // Track connection state
                 connection_state = match connection_state {

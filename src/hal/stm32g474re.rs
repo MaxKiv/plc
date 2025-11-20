@@ -1,5 +1,5 @@
 use embassy_stm32::adc::{Adc, SampleTime};
-use embassy_stm32::dac::{Ch1, Dac, DacChannel};
+use embassy_stm32::dac::{Ch1, Ch2, Dac, DacChannel};
 use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
 use embassy_stm32::mode::Async;
 use embassy_stm32::rtc::{Rtc, RtcConfig};
@@ -21,7 +21,9 @@ static TX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 pub struct Hal {
     pub adc1: Adc<'static, ADC1>,
     pub adc2: Adc<'static, ADC2>,
-    pub pressure_regulator_dac: DacChannel<'static, DAC1, Ch1, Async>,
+    pub heart_pressure_dac: DacChannel<'static, DAC1, Ch1, Async>,
+    pub systemic_compliance_dac: DacChannel<'static, DAC1, Ch2, Async>,
+    pub pulmonary_compliance_dac: DacChannel<'static, DAC2, Ch1, Async>,
     pub left_valve: Output<'static>,
     pub right_valve: Output<'static>,
     pub dma: Peri<'static, DMA1_CH1>,
@@ -53,12 +55,8 @@ impl Hal {
         // TODO: tweak to sensor signal impedance
         adc1.set_sample_time(SampleTime::CYCLES47_5);
 
-        // let mut temp_channel = adc1.enable_temperature();
-        // let measured = adc1.blocking_read(&mut temp_channel);
-        // info!("measured temperature: {}", measured);
-
         let adc2 = Adc::new(p.ADC2);
-        let led = Output::new(p.PA5, Level::Low, Speed::Low);
+        let led = Output::new(p.PB9, Level::Low, Speed::Low);
 
         let adc_channels = AdcChannels {
             regulator_actual_pressure: p.PA0,
@@ -89,8 +87,8 @@ impl Hal {
         // Default initialize the RTC
         let rtc = Rtc::new(p.RTC, RtcConfig::default());
 
-        let (pressure_regulator_dac, systemic_compliance_dac) =
-            Dac::new(p.DAC1, p.DMA1_CH3, p.DMA1_CH4, p.PA4, p.pa5).split();
+        let (heart_pressure_dac, systemic_compliance_dac) =
+            Dac::new(p.DAC1, p.DMA1_CH3, p.DMA1_CH4, p.PA4, p.PA5).split();
         let pulmonary_compliance_dac = DacChannel::new(p.DAC2, p.DMA1_CH5, p.PA6);
 
         let left_valve = Output::new(p.PC2, Level::Low, Speed::Low);
@@ -99,7 +97,9 @@ impl Hal {
         Self {
             adc1,
             adc2,
-            pressure_regulator_dac,
+            heart_pressure_dac,
+            systemic_compliance_dac,
+            pulmonary_compliance_dac,
             dma,
             led,
             adc_channels,

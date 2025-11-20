@@ -4,7 +4,7 @@
 pub mod adc_task;
 pub mod button_task;
 pub mod comms;
-pub mod dac_task;
+pub mod dac;
 pub mod framing_task;
 pub mod hal;
 pub mod heart_control;
@@ -126,7 +126,11 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
     spawner
-        .spawn(dac_task::write_dac(hal.pressure_regulator_dac))
+        .spawn(dac::dac_task::write_dac(
+            hal.heart_pressure_dac,
+            hal.systemic_compliance_dac,
+            hal.pulmonary_compliance_dac,
+        ))
         .unwrap();
 }
 
