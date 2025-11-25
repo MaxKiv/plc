@@ -47,7 +47,7 @@ pub async fn read_adc(
                 (&mut pulmonary_afterload_pressure, SampleTime::CYCLES24_5),
             ]
             .into_iter(),
-            &mut read_buffer,
+            read_buffer,
         )
         .await;
 

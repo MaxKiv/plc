@@ -23,6 +23,7 @@ pub struct Valve {
 
 impl Valve {
     fn actuate(&mut self) {
+        debug!("Valve actuating to :{:?}", self.state);
         match self.state {
             ValveState::Pressure => self.pin.set_high(),
             ValveState::Vacuum => self.pin.set_low(),

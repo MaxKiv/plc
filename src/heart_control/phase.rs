@@ -2,6 +2,9 @@ use defmt::debug;
 use embassy_time::Duration;
 use uom::si::{f32::Frequency, frequency::hertz};
 
+const MIN_SYSTOLE_RATIO: f32 = 0.0;
+const MAX_SYSTOLE_RATIO: f32 = 1.0;
+
 /// Phases of the heart ventricles
 /// Systole = ventricle contraction, Diastole = ventricle relaxation
 #[derive(Debug, defmt::Format)]
@@ -29,23 +32,19 @@ impl CardiacPhase {
 
         let heart_rate_hz = heart_rate.get::<hertz>();
 
-        let full_cycle_period_us = 1.0 / heart_rate_hz * US_IN_SEC;
+        let full_cycle_period_us = (1.0 / heart_rate_hz) * US_IN_SEC;
 
         debug!("full_cycle_period_us: {}", full_cycle_period_us);
 
         let ratio = match self {
             CardiacPhase::Systole => systole_ratio,
             CardiacPhase::Diastole => 1.0 - systole_ratio,
-        };
-
-        if full_cycle_period_us == f32::INFINITY {
-            debug!("full_cycle_period_us == INF -> {}", Duration::MAX);
-            Duration::MAX
-        } else {
-            let out = (full_cycle_period_us * ratio) as u64;
-            debug!("full_cycle_period_us != INF -> {}", out);
-            Duration::from_micros(out)
         }
+        .clamp(MIN_SYSTOLE_RATIO, MAX_SYSTOLE_RATIO);
+
+        let out = (full_cycle_period_us * ratio) as u64;
+        debug!("total time in this phase: {}", out);
+        Duration::from_micros(out)
     }
 }
 

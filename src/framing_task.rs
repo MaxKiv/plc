@@ -84,7 +84,7 @@ pub async fn frame_and_serialise_setpoints(
                         }
                         Err(err) => {
                             error!(
-                                "FRAMING - frame_setpoints: Unable to deserialise framing buffer into a report. Err: {} - buffer: {:?}",
+                                "FRAMING - frame_setpoints: Unable to deserialise framing buffer into a setpoint. Err: {} - buffer: {:?}",
                                 err, framing_buf
                             );
                         }

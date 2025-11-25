@@ -132,6 +132,9 @@ async fn main(spawner: Spawner) {
             hal.pulmonary_compliance_dac,
         ))
         .unwrap();
+    spawner
+        .spawn(valve_task::control_valves(hal.left_valve, hal.right_valve))
+        .unwrap();
 }
 
 // Configure reset and clock control
