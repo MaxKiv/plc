@@ -15,6 +15,8 @@ use embassy_stm32::{
 };
 use static_cell::StaticCell;
 
+use crate::button_task::ButtonPeripherals;
+
 bind_interrupts!(struct Irqs {
     USART2 => usart::BufferedInterruptHandler<peripherals::USART2>;
 });
@@ -75,7 +77,7 @@ pub struct Hal {
     pub dma: Peri<'static, DMA1_CH1>,
     pub led: Output<'static>,
     pub adc_channels: AdcChannels,
-    pub button: Input<'static>,
+    pub button: ButtonPeripherals<PC13>,
     pub uart: BufferedUart<'static>,
     pub rtc: Rtc,
 }
@@ -103,7 +105,10 @@ impl Hal {
 
         let dma = p.DMA1_CH1;
 
-        let button = Input::new(p.PC13, Pull::Down);
+        let button = ButtonPeripherals {
+            pin: p.PC13,
+            ch: p.EXTI13,
+        };
 
         // Construct the BufferedUart, a structure that allows us to process received uart bytes from a
         // ring buffer that is continously filled by DMA, and send uart bytes using a software FIFO

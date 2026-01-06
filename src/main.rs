@@ -21,7 +21,6 @@ use embassy_stm32::rcc::{
     AHBPrescaler, APBPrescaler, Hsi48Config, LsConfig, PllMul, PllPreDiv, PllRDiv, PllSource,
     RtcClockSource, Sysclk, mux,
 };
-use embassy_sync::channel::Channel;
 use embassy_sync::pipe::{self};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
 use love_letter::{AppState, Report, Setpoint};
@@ -31,7 +30,7 @@ use static_cell::StaticCell;
 use crate::adc_task::AdcFrame;
 use crate::hal::Hal;
 
-static ADC_CHAN: Channel<Cs, AdcFrame, 2> = Channel::new();
+static ADC_WATCH: Watch<Cs, AdcFrame, 2> = Watch::new();
 static APPSTATE_WATCH: Watch<Cs, AppState, 1> = Watch::new();
 static REPORT_WATCH: Watch<Cs, Report, 1> = Watch::new();
 static SETPOINT_WATCH: Watch<Cs, Setpoint, 3> = Watch::new();
@@ -66,12 +65,7 @@ async fn main(spawner: Spawner) {
     let (uart_tx, uart_rx) = hal.uart.split();
 
     info!("Spawning tasks...");
-    spawner
-        .spawn(button_task::manage_button(
-            APPSTATE_WATCH.sender(),
-            hal.button,
-        ))
-        .unwrap();
+
     spawner
         .spawn(led_task::blink_led(
             hal.led,
@@ -83,7 +77,7 @@ async fn main(spawner: Spawner) {
             hal.adc1,
             hal.dma,
             hal.adc_channels,
-            ADC_CHAN.sender(),
+            ADC_WATCH.sender(),
         ))
         .unwrap();
     spawner
@@ -106,7 +100,9 @@ async fn main(spawner: Spawner) {
         .unwrap();
     spawner
         .spawn(reporting_task::collect_and_publish_reports(
-            ADC_CHAN.receiver(),
+            ADC_WATCH
+                .receiver()
+                .expect("max number of adc watch receivers created"),
             REPORT_WATCH.sender(),
             SETPOINT_WATCH.receiver().expect("Update setpoint watch N"),
         ))

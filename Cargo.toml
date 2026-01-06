@@ -30,7 +30,7 @@ love-letter = { git = "ssh://git@bitbucket.org/mechatronica/love_letter.git" }
 version = "0.3.0"
 optional = true
 default-features = false
-features = ["defmt", "rt", "chrono"]
+features = ["defmt", "rt", "chrono", "exti"]
 
 [features]
 default = [ "stm32g474re" ]

@@ -4,8 +4,8 @@ use embassy_stm32::{
     adc::{Adc, AdcChannel, SampleTime},
     peripherals::{ADC1, DMA1_CH1},
 };
-use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, channel::Sender};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Sender};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use love_letter::Measurements;
 use serde::Serialize;
 
@@ -24,7 +24,10 @@ pub async fn read_adc(
 ) {
     info!("starting ADC task");
 
-    let mut read_buffer = unsafe { &mut DMA_BUF[..] };
+    // Task timekeeper
+    let mut ticker = Ticker::every(SAMPLE_PERIOD);
+
+    let read_buffer = unsafe { &mut DMA_BUF[..] };
 
     let mut regulator_pressure = adc_channels.regulator_actual_pressure.degrade_adc();
     let mut systemic_flow = adc_channels.systemic_flow.degrade_adc();
@@ -63,13 +66,13 @@ pub async fn read_adc(
 
         info!("ADC: measured frame: {:?}", frame);
 
-        frame_out.send(frame).await;
+        frame_out.send(frame);
 
-        Timer::after(SAMPLE_PERIOD).await;
+        ticker.next().await;
     }
 }
 
-#[derive(Format, Serialize)]
+#[derive(Format, Serialize, Clone)]
 pub struct AdcFrame {
     pub regulator_actual_pressure: u16,
     pub systemic_flow: u16,
