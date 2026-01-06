@@ -1,8 +1,13 @@
 use embassy_stm32::adc::{Adc, SampleTime};
 use embassy_stm32::dac::{Ch1, Ch2, Dac, DacChannel};
-use embassy_stm32::gpio::{Input, Level, Output, Pull, Speed};
+use embassy_stm32::gpio::{Input, Level, Output, OutputType, Pull, Speed};
 use embassy_stm32::mode::Async;
 use embassy_stm32::rtc::{Rtc, RtcConfig};
+use embassy_stm32::time::{Hertz, khz};
+use embassy_stm32::timer::Channel;
+use embassy_stm32::timer::complementary_pwm::ComplementaryPwm;
+use embassy_stm32::timer::complementary_pwm::ComplementaryPwmPin;
+use embassy_stm32::timer::simple_pwm::PwmPin;
 use embassy_stm32::usart::{self, BufferedUart};
 use embassy_stm32::{
     Peri, Peripherals, bind_interrupts,
@@ -17,23 +22,6 @@ bind_interrupts!(struct Irqs {
 static RX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 static TX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 
-/// Concrete HAL for STM32G474RE
-pub struct Hal {
-    pub adc1: Adc<'static, ADC1>,
-    pub adc2: Adc<'static, ADC2>,
-    pub heart_pressure_dac: DacChannel<'static, DAC1, Ch1, Async>,
-    pub systemic_compliance_dac: DacChannel<'static, DAC1, Ch2, Async>,
-    pub pulmonary_compliance_dac: DacChannel<'static, DAC2, Ch1, Async>,
-    pub left_valve: Output<'static>,
-    pub right_valve: Output<'static>,
-    pub dma: Peri<'static, DMA1_CH1>,
-    pub led: Output<'static>,
-    pub adc_channels: AdcChannels,
-    pub button: Input<'static>,
-    pub uart: BufferedUart<'static>,
-    pub rtc: Rtc,
-}
-
 /// Number of adc inputs, this could be a fancy macro but I decided against the complexity
 pub const NUM_ADC_INPUTS: usize = 7;
 
@@ -45,6 +33,51 @@ pub struct AdcChannels {
     pub systemic_afterload_pressure: Peri<'static, PB0>,
     pub pulmonary_preload_pressure: Peri<'static, PB1>,
     pub pulmonary_afterload_pressure: Peri<'static, PB11>,
+}
+
+/// Responsible for toggling the heart ventricle solenoid valves
+/// Simple wrapper around [`ComplementaryPwm`] to easy switching of channels
+pub struct ValvePwm {
+    complementary_pwm: ComplementaryPwm<'static, TIM1>,
+    channel: Channel,
+}
+
+impl ValvePwm {
+    pub fn enable(&mut self) {
+        self.complementary_pwm.enable(self.channel);
+    }
+
+    pub fn disable(&mut self) {
+        self.complementary_pwm.disable(self.channel);
+    }
+
+    pub fn set_duty(&mut self, duty: u16) {
+        self.complementary_pwm.set_duty(self.channel, duty);
+    }
+
+    pub fn set_frequency(&mut self, freq: Hertz) {
+        self.complementary_pwm.set_frequency(freq);
+    }
+
+    pub fn get_max_duty(&self) -> u16 {
+        self.complementary_pwm.get_max_duty()
+    }
+}
+
+/// Concrete HAL for STM32G474RE
+pub struct Hal {
+    pub adc1: Adc<'static, ADC1>,
+    pub adc2: Adc<'static, ADC2>,
+    pub heart_pressure_dac: DacChannel<'static, DAC1, Ch1, Async>,
+    pub systemic_compliance_dac: DacChannel<'static, DAC1, Ch2, Async>,
+    pub pulmonary_compliance_dac: DacChannel<'static, DAC2, Ch1, Async>,
+    pub valve_pwm: ValvePwm,
+    pub dma: Peri<'static, DMA1_CH1>,
+    pub led: Output<'static>,
+    pub adc_channels: AdcChannels,
+    pub button: Input<'static>,
+    pub uart: BufferedUart<'static>,
+    pub rtc: Rtc,
 }
 
 impl Hal {
@@ -72,7 +105,7 @@ impl Hal {
 
         let button = Input::new(p.PC13, Pull::Down);
 
-        // Construct the BufferedUart, a structure allows us to process received uart bytes from a
+        // Construct the BufferedUart, a structure that allows us to process received uart bytes from a
         // ring buffer that is continously filled by DMA, and send uart bytes using a software FIFO
         let mut uart_cfg = usart::Config::default();
         // uart_cfg.baudrate = 921600;
@@ -91,8 +124,25 @@ impl Hal {
             Dac::new(p.DAC1, p.DMA1_CH3, p.DMA1_CH4, p.PA4, p.PA5).split();
         let pulmonary_compliance_dac = DacChannel::new(p.DAC2, p.DMA1_CH5, p.PA6);
 
-        let left_valve = Output::new(p.PC2, Level::Low, Speed::Low);
-        let right_valve = Output::new(p.PC3, Level::Low, Speed::Low);
+        let ch1 = PwmPin::new(p.PC2, OutputType::PushPull);
+        let ch1n = ComplementaryPwmPin::new(p.PB15, OutputType::PushPull);
+        let complementary_pwm = ComplementaryPwm::new(
+            p.TIM1,
+            None,
+            None,
+            None,
+            None,
+            Some(ch1),
+            Some(ch1n),
+            None,
+            None,
+            khz(10),
+            Default::default(),
+        );
+        let valve_pwm = ValvePwm {
+            complementary_pwm,
+            channel: Channel::Ch3,
+        };
 
         Self {
             adc1,
@@ -106,8 +156,7 @@ impl Hal {
             button,
             uart,
             rtc,
-            left_valve,
-            right_valve,
+            valve_pwm,
         }
     }
 }

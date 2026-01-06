@@ -133,7 +133,7 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
     spawner
-        .spawn(valve_task::control_valves(hal.left_valve, hal.right_valve))
+        .spawn(valve_task::control_valves(hal.valve_pwm))
         .unwrap();
 }
 

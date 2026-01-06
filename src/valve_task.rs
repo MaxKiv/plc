@@ -1,79 +1,62 @@
 use defmt::*;
-use embassy_futures::select::{Either, select};
-use embassy_stm32::gpio::Output;
-use embassy_sync::{
-    blocking_mutex::raw::ThreadModeRawMutex as Cs,
-    watch::{self, Watch},
-};
+use embassy_stm32::peripherals::TIM1;
+use embassy_stm32::timer::Channel;
+use embassy_stm32::{time::Hertz, timer::complementary_pwm::ComplementaryPwm};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
 
-pub static LEFT_VALVE_WATCH: Watch<Cs, ValveState, 1> = Watch::new();
-pub static RIGHT_VALVE_WATCH: Watch<Cs, ValveState, 1> = Watch::new();
+use crate::hal::ValvePwm;
 
-#[derive(Debug, Clone, Copy, defmt::Format)]
-pub enum ValveState {
-    Pressure,
-    Vacuum,
+pub static VALVE_WATCH: Watch<Cs, PwmValveSetpoint, 1> = Watch::new();
+
+#[derive(Clone, Debug, defmt::Format)]
+pub struct PwmValveSetpoint {
+    /// Duty cycle percentage
+    pub enable: bool,
+    pub frequency: Hertz,
+    pub systole_ratio: f32,
 }
 
-pub struct Valve {
-    pin: Output<'static>,
-    state: ValveState,
-    rx: watch::Receiver<'static, Cs, ValveState, 1>,
-}
-
-impl Valve {
-    fn actuate(&mut self) {
-        debug!("Valve actuating to :{:?}", self.state);
-        match self.state {
-            ValveState::Pressure => self.pin.set_high(),
-            ValveState::Vacuum => self.pin.set_low(),
+impl PwmValveSetpoint {
+    pub const fn get_safe() -> Self {
+        Self {
+            enable: false,
+            frequency: Hertz(1),
+            systole_ratio: love_letter::SYSTOLE_RATIO_DEFAULT,
         }
     }
 }
 
 #[embassy_executor::task]
-pub async fn control_valves(left_valve_pin: Output<'static>, right_valve_pin: Output<'static>) {
+pub async fn control_valves(mut ventricle_pwm: ValvePwm) {
     info!("starting VALVE task");
 
-    let rx_left = LEFT_VALVE_WATCH
-        .receiver()
-        .expect("Increase left valve watch size");
-
-    let mut left_valve = Valve {
-        pin: left_valve_pin,
-        state: ValveState::Vacuum,
-        rx: rx_left,
-    };
-
-    let rx_right = RIGHT_VALVE_WATCH
-        .receiver()
-        .expect("Increase right valve watch size");
-    let mut right_valve = Valve {
-        pin: right_valve_pin,
-        state: ValveState::Vacuum,
-        rx: rx_right,
-    };
+    let mut rx = VALVE_WATCH.receiver().expect("Increase valve watch size");
 
     info!("starting VALVE loop");
     loop {
-        // Wait for valve actuation request
-        let left_valve_update = left_valve.rx.changed();
-        let right_valve_update = right_valve.rx.changed();
-        match select(left_valve_update, right_valve_update).await {
-            // Left valve is supposed to be actuated, do so
-            Either::First(new_state) => {
-                // New setpoint for the left valve
-                left_valve.state = new_state;
+        // Wait for new valve setpoint
+        let PwmValveSetpoint {
+            enable,
+            frequency,
+            systole_ratio,
+        } = rx.changed().await;
 
-                left_valve.actuate()
-            }
-            // Right valve is supposed to be actuated, do so
-            Either::Second(new_state) => {
-                // New setpoint for the right valve
-                right_valve.state = new_state;
-
-                right_valve.actuate()
-            }
+        // Actuate valves according to newly recieved setpoint
+        if enable {
+            trace!("VALVE ENABLED @ {}hz - {}sr", frequency, systole_ratio);
+            ventricle_pwm.enable();
+            ventricle_pwm.set_frequency(frequency);
+            ventricle_pwm.set_duty(systole_ratio_to_duty_cycle(
+                systole_ratio,
+                ventricle_pwm.get_max_duty(),
+            ));
+        } else {
+            trace!("VALVE DISABLED");
+            ventricle_pwm.disable();
         }
     }
+}
+
+fn systole_ratio_to_duty_cycle(systole_ratio: f32, max_duty: u16) -> u16 {
+    (systole_ratio.clamp(0.0, 1.0) * max_duty as f32) as u16
 }
