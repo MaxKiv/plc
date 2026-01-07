@@ -54,7 +54,10 @@ pub async fn read_adc(
         )
         .await;
 
+        let t = Instant::now();
+
         let frame = AdcFrame {
+            timestamp: t.as_micros(),
             regulator_actual_pressure: read_buffer[0],
             systemic_flow: read_buffer[1],
             pulmonary_flow: read_buffer[2],
@@ -74,6 +77,7 @@ pub async fn read_adc(
 
 #[derive(Format, Serialize, Clone)]
 pub struct AdcFrame {
+    pub timestamp: u64,
     pub regulator_actual_pressure: u16,
     pub systemic_flow: u16,
     pub pulmonary_flow: u16,
@@ -90,7 +94,7 @@ impl AdcFrame {
         use uom::si::volume_rate::*;
 
         Measurements {
-            timestamp: Instant::now().as_micros(),
+            timestamp: self.timestamp,
             regulator_actual_pressure: Pressure::new::<millimeter_of_mercury>(
                 self.regulator_actual_pressure.into(),
             ),
