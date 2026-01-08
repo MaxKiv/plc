@@ -7,7 +7,7 @@ use embassy_stm32::time::{Hertz, khz};
 use embassy_stm32::timer::Channel;
 use embassy_stm32::timer::complementary_pwm::ComplementaryPwm;
 use embassy_stm32::timer::complementary_pwm::ComplementaryPwmPin;
-use embassy_stm32::timer::simple_pwm::PwmPin;
+use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
 use embassy_stm32::usart::{self, BufferedUart};
 use embassy_stm32::{
     Peri, Peripherals, bind_interrupts,
@@ -75,7 +75,7 @@ pub struct Hal {
     pub pulmonary_compliance_dac: DacChannel<'static, DAC2, Ch1, Async>,
     pub valve_pwm: ValvePwm,
     pub dma: Peri<'static, DMA1_CH1>,
-    pub led: Output<'static>,
+    pub led: SimplePwm<'static, TIM17>,
     pub adc_channels: AdcChannels,
     pub button: ButtonPeripherals<PC13>,
     pub uart: BufferedUart<'static>,
@@ -91,7 +91,18 @@ impl Hal {
         adc1.set_sample_time(SampleTime::CYCLES47_5);
 
         let adc2 = Adc::new(p.ADC2);
-        let led = Output::new(p.PB9, Level::Low, Speed::Low);
+
+        // let led = Output::new(p.PB9, Level::Low, Speed::Low);
+        let led_pin = PwmPin::new(p.PB9, OutputType::PushPull);
+        let led = SimplePwm::new(
+            p.TIM17,
+            Some(led_pin),
+            None,
+            None,
+            None,
+            Hertz(1),
+            Default::default(),
+        );
 
         let adc_channels = AdcChannels {
             regulator_actual_pressure: p.PA0,

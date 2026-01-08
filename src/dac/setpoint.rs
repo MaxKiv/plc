@@ -1,4 +1,4 @@
-use defmt::trace;
+use defmt::{debug, trace};
 use uom::si::{f32::Pressure, pressure::bar};
 
 #[derive(Debug, defmt::Format)]
@@ -24,7 +24,7 @@ impl RegulatorSetpoint {
         let pressure: u16 = converted as u16;
         let setpoint = RegulatorSetpoint { pressure };
 
-        trace!(
+        debug!(
             "converted pressure: {:?}bar into DAC setpoint: {:?}",
             from, setpoint,
         );
@@ -39,7 +39,7 @@ impl RegulatorSetpoint {
 
         let pressure = Pressure::new::<bar>(converted);
 
-        trace!(
+        debug!(
             "converted DAC pressure setpoint: {:?} into pressure: {:?}bar",
             self.pressure,
             pressure.get::<bar>()

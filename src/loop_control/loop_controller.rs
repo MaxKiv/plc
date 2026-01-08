@@ -91,7 +91,7 @@ fn to_safe_loop_state(
 ) {
     const COMPLIANCE_REGULATOR_SAFE_PRESSURE_BAR: f32 = 0.0;
 
-    debug!("HEART CONTROL: to SAFE state",);
+    debug!("LOOP CONTROL: to SAFE state",);
 
     systemic_pressure_tx.send(Pressure::new::<bar>(COMPLIANCE_REGULATOR_SAFE_PRESSURE_BAR));
     pulmonary_pressure_tx.send(Pressure::new::<bar>(COMPLIANCE_REGULATOR_SAFE_PRESSURE_BAR));

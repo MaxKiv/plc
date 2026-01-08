@@ -8,7 +8,7 @@ pub mod dac;
 pub mod framing_task;
 pub mod hal;
 pub mod heart_control;
-pub mod led_task;
+pub mod led;
 pub mod loop_control;
 pub mod reporting_task;
 pub mod valve_task;
@@ -67,7 +67,7 @@ async fn main(spawner: Spawner) {
     info!("Spawning tasks...");
 
     spawner
-        .spawn(led_task::blink_led(
+        .spawn(led::led_task::blink_led(
             hal.led,
             APPSTATE_WATCH.receiver().expect("Update appstate watch N"),
         ))

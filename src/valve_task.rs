@@ -43,7 +43,7 @@ pub async fn control_valves(mut ventricle_pwm: ValvePwm) {
 
         // Actuate valves according to newly recieved setpoint
         if enable {
-            trace!("VALVE ENABLED @ {}hz - {}sr", frequency, systole_ratio);
+            debug!("VALVE ENABLED @ {}hz - {}sr", frequency, systole_ratio);
             ventricle_pwm.enable();
             ventricle_pwm.set_frequency(frequency);
             ventricle_pwm.set_duty(systole_ratio_to_duty_cycle(
@@ -51,12 +51,14 @@ pub async fn control_valves(mut ventricle_pwm: ValvePwm) {
                 ventricle_pwm.get_max_duty(),
             ));
         } else {
-            trace!("VALVE DISABLED");
+            debug!("VALVE DISABLED");
             ventricle_pwm.disable();
         }
     }
 }
 
 fn systole_ratio_to_duty_cycle(systole_ratio: f32, max_duty: u16) -> u16 {
-    (systole_ratio.clamp(0.0, 1.0) * max_duty as f32) as u16
+    let dc = (systole_ratio.clamp(0.0, 1.0) * max_duty as f32) as u16;
+    debug!("VALVE: systole_ratio {} = duty cycle {}", systole_ratio, dc);
+    dc
 }

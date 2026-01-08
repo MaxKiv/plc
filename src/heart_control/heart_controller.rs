@@ -5,9 +5,7 @@ use love_letter::{AppState, HeartControllerSetpoint, Setpoint};
 use uom::si::{f32::Pressure, frequency::hertz, pressure::bar};
 
 use crate::{
-    comms::task::CONNECTION_STATE,
     dac::dac_task::DAC_HEART_PRESSURE_WATCH,
-    heart_control::phase::CardiacPhase,
     valve_task::{PwmValveSetpoint, VALVE_WATCH},
 };
 
@@ -16,27 +14,31 @@ use crate::{
 pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Setpoint, 3>) {
     info!("starting HEART CONTROL task");
 
-    // let connection_state_rx = CONNECTION_STATE
-    //     .receiver()
-    //     .expect("Update CONNECTION_STATE N");
-
     let regulator_pressure_tx = DAC_HEART_PRESSURE_WATCH.sender();
     let valve_tx = VALVE_WATCH.sender();
+
+    let tx = crate::APPSTATE_WATCH.sender();
 
     info!("HEART CONTROL: Moving mockloop into safe state");
     to_safe_heart_state(&regulator_pressure_tx, &valve_tx);
 
     info!("HEART CONTROL: starting loop");
     loop {
-        trace!("HEART CONTROL: waiting for setpoint");
+        debug!("HEART CONTROL: waiting for setpoint");
+
+        // Wait for setpoint change from backend
+        let setpoint = setpoint_rx.changed().await;
+        debug!("HEART CONTROL: new setpoint {:?}", setpoint);
+
+        // Is the heart controller enabled?
         if let Some(HeartControllerSetpoint {
             heart_rate,
             pressure,
             systole_ratio,
-        }) = setpoint_rx.changed().await.heart_controller_setpoint
+        }) = setpoint.heart_controller_setpoint
         {
             // Heart is enabled: drive regulator and valves
-            trace!(
+            debug!(
                 "HEART CONTROL: Received setpoint ENABLE with {}hz and {}sr",
                 heart_rate.get::<hertz>(),
                 systole_ratio
@@ -47,11 +49,15 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
                 systole_ratio,
             };
 
+            // Indicate system running
+            tx.send(AppState::Running(valve_setpoint.frequency.0));
+
+            // Drive actuators
             control_pressure_regulator(pressure, &regulator_pressure_tx);
             control_ventricle_valves(valve_setpoint, &valve_tx);
         } else {
             // Heart is disabled: drive to safe state
-            trace!("HEART CONTROL: Received setpoint DISABLE");
+            debug!("HEART CONTROL: Received setpoint DISABLE");
             to_safe_heart_state(&regulator_pressure_tx, &valve_tx);
         }
     }
@@ -59,7 +65,7 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
 
 /// Set pressure regulator to the latest setpoint received for it
 fn control_pressure_regulator(pressure: Pressure, tx: &watch::Sender<'static, Cs, Pressure, 1>) {
-    trace!(
+    debug!(
         "Controlling regulator pressure to: {:?}bar",
         pressure.get::<bar>()
     );
@@ -71,6 +77,7 @@ fn control_ventricle_valves(
     valve_setpoint: PwmValveSetpoint,
     valve_tx: &watch::Sender<'static, Cs, PwmValveSetpoint, 1>,
 ) {
+    debug!("Controlling ventricle valves to {:?}", valve_setpoint);
     valve_tx.send(valve_setpoint);
 }
 
@@ -84,7 +91,7 @@ fn to_safe_heart_state(
     /// Safest solenoid state = 0bar pressure. Alternative is Vacuum which seems less safe
     const SAFE_VALVE_SETPOINT: PwmValveSetpoint = PwmValveSetpoint::get_safe();
 
-    trace!("HEART CONTROL: to SAFE state",);
+    debug!("HEART CONTROL: to SAFE state",);
 
     control_pressure_regulator(
         Pressure::new::<bar>(HEART_REGULATOR_SAFE_PRESSURE_BAR),

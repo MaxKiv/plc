@@ -6,6 +6,7 @@ use embassy_time::{Duration, WithTimeout};
 use embedded_io_async::Read;
 use embedded_io_async::Write;
 
+use crate::APPSTATE_WATCH;
 use crate::comms::connection_state::ConnectionState;
 
 /// Period at which this task is ticked
@@ -16,7 +17,7 @@ const SETPOINT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
 /// Time we remain patient before deciding our application is not responding
 const REPORT_RECEIVE_TIMEOUT: Duration = Duration::from_millis(2000);
 
-pub static CONNECTION_STATE: Watch<Cs, ConnectionState, 1> = Watch::new();
+// pub static CONNECTION_STATE: Watch<Cs, ConnectionState, 1> = Watch::new();
 
 #[embassy_executor::task]
 /// Forward firmware state reports to the HHH host
@@ -47,7 +48,7 @@ pub async fn receive_setpoints(
     mut setpoint_pipe_tx: pipe::Writer<'static, Cs, { love_letter::SETPOINT_BYTES * 4 }>,
 ) {
     let mut buf = [0u8; 64];
-    let tx = CONNECTION_STATE.sender();
+    let tx = APPSTATE_WATCH.sender();
     let mut connection_state = ConnectionState::Disconnected;
 
     loop {
@@ -67,7 +68,7 @@ pub async fn receive_setpoints(
                 // Now we are talking!
                 if connection_state != ConnectionState::Connected {
                     connection_state = ConnectionState::Connected;
-                    tx.send(connection_state.clone());
+                    tx.send(love_letter::AppState::StandBy);
                 }
 
                 // Yeet the setpoint bytes into a pipe for later deserialisation
@@ -82,7 +83,6 @@ pub async fn receive_setpoints(
                 // Indicate issue
                 if connection_state != ConnectionState::Stale {
                     connection_state = ConnectionState::Stale;
-                    tx.send(connection_state.clone());
                 }
             }
             Err(err) => {
@@ -98,7 +98,7 @@ pub async fn receive_setpoints(
                     ConnectionState::Disconnected => ConnectionState::Disconnected,
                 };
 
-                tx.send(connection_state.clone())
+                tx.send(love_letter::AppState::Fault)
             }
         }
     }
