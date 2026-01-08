@@ -6,7 +6,7 @@ use love_letter::{AppState, Report, Setpoint};
 use crate::adc_task::AdcFrame;
 
 /// Minimum period between 2 reports
-const REPORT_PERIOD: Duration = Duration::from_millis(100);
+const REPORT_PERIOD: Duration = Duration::from_millis(50);
 
 /// Parses latest ADC frames, Setpoints and AppState into coherent [`Report`]s
 #[embassy_executor::task]

@@ -1,6 +1,6 @@
 use embassy_stm32::adc::{Adc, SampleTime};
 use embassy_stm32::dac::{Ch1, Ch2, Dac, DacChannel};
-use embassy_stm32::gpio::{Input, Level, Output, OutputType, Pull, Speed};
+use embassy_stm32::gpio::{OutputType, Pull, Speed};
 use embassy_stm32::mode::Async;
 use embassy_stm32::rtc::{Rtc, RtcConfig};
 use embassy_stm32::time::{Hertz, khz};
