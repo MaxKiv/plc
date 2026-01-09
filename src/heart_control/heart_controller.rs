@@ -45,12 +45,12 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
             );
             let valve_setpoint = PwmValveSetpoint {
                 enable: true,
-                frequency: Hertz(heart_rate.get::<hertz>() as u32),
+                frequency: heart_rate.get::<hertz>(),
                 systole_ratio,
             };
 
             // Indicate system running
-            tx.send(AppState::Running(valve_setpoint.frequency.0));
+            tx.send(AppState::Running(valve_setpoint.frequency));
 
             // Drive actuators
             control_pressure_regulator(pressure, &regulator_pressure_tx);

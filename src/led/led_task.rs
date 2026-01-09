@@ -37,8 +37,9 @@ pub async fn blink_led(
                 led.set_frequency(STANDBY_FREQUENCY);
                 led.ch1().set_duty_cycle_percent(DEFAULT_DUTY_CYCLE);
             }
-            AppState::Running(freq) => {
-                led.set_frequency(Hertz(freq));
+            AppState::Running(frequency) => {
+                led.set_frequency_low(frequency);
+                // led.set_frequency(Hertz(frequency as u32));
                 led.ch1().set_duty_cycle_percent(DEFAULT_DUTY_CYCLE);
             }
             AppState::Fault => {

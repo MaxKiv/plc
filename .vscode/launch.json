@@ -2,24 +2,55 @@
     "version": "0.2.0",
     "configurations": [
         {
-        "name": "Debug STM32G4 (Rust firmware)",
-        "type": "cortex-debug",
-        "request": "launch",
-        "servertype": "openocd",
-        "cwd": "${workspaceFolder}",
-        "executable": "${workspaceFolder}/target/thumbv7em-none-eabihf/debug/plc-lite", 
-        "device": "STM32G474RE",                // Pick the exact STM32G4 part number
-        "configFiles": [
-            "interface/stlink.cfg",
-            "target/stm32g4x.cfg"
-        ],
-        "runToMain": true,
-        // "svdFile": "${workspaceFolder}/STM32G4.svd", 
-        "preLaunchTask": "cargo build",        // optional, see tasks.json
-        "postRestartCommands": [
-            "monitor reset halt"
-        ],
-        "showDevDebugOutput": "both"
+            "name": "Debug STM32G4 (Rust firmware)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "openocd",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/target/thumbv7em-none-eabihf/debug/plc-lite", 
+            "device": "STM32G474RE",                // Pick the exact STM32G4 part number
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32g4x.cfg"
+            ],
+            "runToMain": true,
+            // "svdFile": "${workspaceFolder}/STM32G4.svd", 
+            "preLaunchTask": "cargo build",        // optional, see tasks.json
+            "postRestartCommands": [
+                "monitor reset halt"
+            ],
+            "showDevDebugOutput": "both"
+        },
+        {
+          "preLaunchTask": "cargo build",
+          "type": "probe-rs-debug",
+          "request": "launch",
+          "name": "probe_rs rtt-target",
+          "flashingConfig": {
+            "flashingEnabled": true,
+          },
+          "chip": "STM32G474RE",
+          "coreConfigs": [
+            {
+              "programBinary": "${workspaceFolder}/target/thumbv7em-none-eabihf/debug/plc-lite",
+              "coreIndex": 0,
+              "rttEnabled": true,
+              "rttChannelFormats": [
+                {
+                  "channelNumber": 0,
+                  // Format RTT data as String data
+                  "dataFormat": "String",
+                  // Include host-side timestamps for every line of data transferred from the target RTT output
+                  "showTimestamps": true
+                },
+                {
+                  "channelNumber": 1,
+                  // Treat data as raw binary data, and do not format in any way
+                  "dataFormat": "BinaryLE"
+                }
+              ]
+            }
+          ]
         }
     ]
 }

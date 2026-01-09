@@ -66,71 +66,59 @@ async fn main(spawner: Spawner) {
 
     info!("Spawning tasks...");
 
-    spawner
-        .spawn(led::led_task::blink_led(
-            hal.led,
-            APPSTATE_WATCH.receiver().expect("Update appstate watch N"),
-        ))
-        .unwrap();
-    spawner
-        .spawn(adc_task::read_adc(
-            hal.adc1,
-            hal.dma,
-            hal.adc_channels,
-            ADC_WATCH.sender(),
-        ))
-        .unwrap();
-    spawner
-        .spawn(comms::task::forward_reports(uart_tx, report_pipe_rx))
-        .unwrap();
-    spawner
-        .spawn(comms::task::receive_setpoints(uart_rx, setpoint_pipe_tx))
-        .unwrap();
-    spawner
-        .spawn(framing_task::serialise_reports(
-            REPORT_WATCH.receiver().unwrap(),
-            report_pipe_tx,
-        ))
-        .unwrap();
-    spawner
-        .spawn(framing_task::frame_and_serialise_setpoints(
-            SETPOINT_WATCH.sender(),
-            setpoint_pipe_rx,
-        ))
-        .unwrap();
-    spawner
-        .spawn(reporting_task::collect_and_publish_reports(
-            ADC_WATCH
-                .receiver()
-                .expect("max number of adc watch receivers created"),
-            REPORT_WATCH.sender(),
-            SETPOINT_WATCH.receiver().expect("Update setpoint watch N"),
-        ))
-        .unwrap();
-    spawner
-        .spawn(loop_control::loop_controller::mockloop_control_loop(
+    spawner.spawn(unwrap!(led::led_task::blink_led(
+        hal.led,
+        APPSTATE_WATCH.receiver().expect("Update appstate watch N"),
+    )));
+    spawner.spawn(unwrap!(adc_task::read_adc(
+        hal.adc1,
+        hal.dma,
+        hal.adc_channels,
+        ADC_WATCH.sender(),
+    )));
+    spawner.spawn(unwrap!(comms::task::forward_reports(
+        uart_tx,
+        report_pipe_rx
+    )));
+    spawner.spawn(unwrap!(comms::task::receive_setpoints(
+        uart_rx,
+        setpoint_pipe_tx
+    )));
+    spawner.spawn(unwrap!(framing_task::serialise_reports(
+        REPORT_WATCH.receiver().unwrap(),
+        report_pipe_tx,
+    )));
+    spawner.spawn(unwrap!(framing_task::frame_and_serialise_setpoints(
+        SETPOINT_WATCH.sender(),
+        setpoint_pipe_rx,
+    )));
+    spawner.spawn(unwrap!(reporting_task::collect_and_publish_reports(
+        ADC_WATCH
+            .receiver()
+            .expect("max number of adc watch receivers created"),
+        REPORT_WATCH.sender(),
+        SETPOINT_WATCH.receiver().expect("Update setpoint watch N"),
+    )));
+    spawner.spawn(unwrap!(
+        loop_control::loop_controller::mockloop_control_loop(
             SETPOINT_WATCH
                 .receiver()
                 .expect("max number of setpoint receivers created"),
-        ))
-        .unwrap();
-    spawner
-        .spawn(heart_control::heart_controller::heart_control_loop(
+        )
+    ));
+    spawner.spawn(unwrap!(
+        heart_control::heart_controller::heart_control_loop(
             SETPOINT_WATCH
                 .receiver()
                 .expect("max number of setpoint receivers created"),
-        ))
-        .unwrap();
-    spawner
-        .spawn(dac::dac_task::write_dac(
-            hal.heart_pressure_dac,
-            hal.systemic_compliance_dac,
-            hal.pulmonary_compliance_dac,
-        ))
-        .unwrap();
-    spawner
-        .spawn(valve_task::control_valves(hal.valve_pwm))
-        .unwrap();
+        )
+    ));
+    spawner.spawn(unwrap!(dac::dac_task::write_dac(
+        hal.heart_pressure_dac,
+        hal.systemic_compliance_dac,
+        hal.pulmonary_compliance_dac,
+    )));
+    spawner.spawn(unwrap!(valve_task::control_valves(hal.valve_pwm)));
 }
 
 // Configure reset and clock control

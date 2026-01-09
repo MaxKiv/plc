@@ -1,8 +1,10 @@
-use embassy_stm32::adc::{Adc, SampleTime};
+use embassy_stm32::adc::{Adc, AdcConfig};
 use embassy_stm32::dac::{Ch1, Ch2, Dac, DacChannel};
-use embassy_stm32::gpio::{OutputType, Pull, Speed};
+use embassy_stm32::exti::{self};
+use embassy_stm32::gpio::OutputType;
+use embassy_stm32::interrupt;
 use embassy_stm32::mode::Async;
-use embassy_stm32::rtc::{Rtc, RtcConfig};
+// use embassy_stm32::rtc::{Rtc, RtcConfig};
 use embassy_stm32::time::{Hertz, khz};
 use embassy_stm32::timer::Channel;
 use embassy_stm32::timer::complementary_pwm::ComplementaryPwm;
@@ -17,8 +19,9 @@ use static_cell::StaticCell;
 
 use crate::button_task::ButtonPeripherals;
 
-bind_interrupts!(struct Irqs {
+bind_interrupts!(pub struct Irqs {
     USART2 => usart::BufferedInterruptHandler<peripherals::USART2>;
+    EXTI15_10 => exti::InterruptHandler<interrupt::typelevel::EXTI15_10>;
 });
 
 static RX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
@@ -53,7 +56,7 @@ impl ValvePwm {
         self.complementary_pwm.disable(self.channel);
     }
 
-    pub fn set_duty(&mut self, duty: u16) {
+    pub fn set_duty(&mut self, duty: u32) {
         self.complementary_pwm.set_duty(self.channel, duty);
     }
 
@@ -61,7 +64,11 @@ impl ValvePwm {
         self.complementary_pwm.set_frequency(freq);
     }
 
-    pub fn get_max_duty(&self) -> u16 {
+    pub fn set_frequency_low(&mut self, freq: f32) {
+        self.complementary_pwm.set_frequency_low(freq);
+    }
+
+    pub fn get_max_duty(&self) -> u32 {
         self.complementary_pwm.get_max_duty()
     }
 }
@@ -79,30 +86,13 @@ pub struct Hal {
     pub adc_channels: AdcChannels,
     pub button: ButtonPeripherals<PC13>,
     pub uart: BufferedUart<'static>,
-    pub rtc: Rtc,
+    pub irqs: Irqs,
 }
 
 impl Hal {
     pub fn new(p: Peripherals) -> Self {
-        let mut adc1 = Adc::new(p.ADC1);
-
-        // Medium sample time
-        // TODO: tweak to sensor signal impedance
-        adc1.set_sample_time(SampleTime::CYCLES47_5);
-
-        let adc2 = Adc::new(p.ADC2);
-
-        // let led = Output::new(p.PB9, Level::Low, Speed::Low);
-        let led_pin = PwmPin::new(p.PB9, OutputType::PushPull);
-        let led = SimplePwm::new(
-            p.TIM17,
-            Some(led_pin),
-            None,
-            None,
-            None,
-            Hertz(1),
-            Default::default(),
-        );
+        let mut adc1 = Adc::new(p.ADC1, AdcConfig::default());
+        let adc2 = Adc::new(p.ADC2, AdcConfig::default());
 
         let adc_channels = AdcChannels {
             regulator_actual_pressure: p.PA0,
@@ -115,6 +105,17 @@ impl Hal {
         };
 
         let dma = p.DMA1_CH1;
+
+        let led_pin = PwmPin::new(p.PB9, OutputType::PushPull);
+        let led = SimplePwm::new(
+            p.TIM17,
+            Some(led_pin),
+            None,
+            None,
+            None,
+            Hertz(1),
+            Default::default(),
+        );
 
         let button = ButtonPeripherals {
             pin: p.PC13,
@@ -134,7 +135,7 @@ impl Hal {
             BufferedUart::new(p.USART2, rx, tx, tx_buffer, rx_buffer, Irqs, uart_cfg).unwrap();
 
         // Default initialize the RTC
-        let rtc = Rtc::new(p.RTC, RtcConfig::default());
+        // let rtc = Rtc::new(p.RTC, RtcConfig::default());
 
         let (heart_pressure_dac, systemic_compliance_dac) =
             Dac::new(p.DAC1, p.DMA1_CH3, p.DMA1_CH4, p.PA4, p.PA5).split();
@@ -171,8 +172,8 @@ impl Hal {
             adc_channels,
             button,
             uart,
-            rtc,
             valve_pwm,
+            irqs: Irqs,
         }
     }
 }

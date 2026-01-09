@@ -9,7 +9,7 @@ pub struct RegulatorSetpoint {
 impl RegulatorSetpoint {
     const REGULATOR_MAX_PRESSURE_BAR: f32 = 2.0;
     const REGULATOR_MIN_PRESSURE_BAR: f32 = 0.0;
-    const REGULATOR_MAX_VALUE: f32 = ((1 << 13) - 1) as f32;
+    const REGULATOR_MAX_VALUE: f32 = ((1 << 12) - 1) as f32;
     const REGULATOR_MIN_VALUE: f32 = 0.0;
 
     // Convert a given regulator pressure into a DAC Setpoint

@@ -2,10 +2,10 @@ use defmt::*;
 
 use embassy_sync::{
     blocking_mutex::raw::ThreadModeRawMutex as Cs,
-    pipe::{self, Pipe},
+    pipe::{self},
     watch,
 };
-use embedded_io_async::Write;
+use embassy_time::Timer;
 use love_letter::{Report, Setpoint};
 
 #[embassy_executor::task]
@@ -13,7 +13,7 @@ use love_letter::{Report, Setpoint};
 /// picked up by the comms task
 pub async fn serialise_reports(
     mut report_receiver: watch::Receiver<'static, Cs, Report, 1>,
-    mut report_pipe_tx: pipe::Writer<'static, Cs, { love_letter::REPORT_BYTES * 4 }>,
+    report_pipe_tx: pipe::Writer<'static, Cs, { love_letter::REPORT_BYTES * 4 }>,
 ) {
     let mut buf = [0u8; love_letter::REPORT_BYTES * 2];
     loop {
@@ -22,13 +22,24 @@ pub async fn serialise_reports(
 
         // Serialize it
         match love_letter::serialize_report(report.clone(), &mut buf) {
-            Ok(serialised) => {
+            Ok(mut serialised) => {
                 // Push serialised report into pipe for consumption in comms task
                 info!(
                     "FRAMING - serialize_report: serialised report: {:?}",
                     serialised
                 );
-                let _ = report_pipe_tx.write_all(serialised).await;
+                // Write until full report is pushed into pipe
+                while !serialised.is_empty() {
+                    let n = report_pipe_tx.write(serialised).await;
+
+                    if n == 0 {
+                        // Pipe is full, yield until space is available
+                        Timer::after(embassy_time::Duration::from_millis(1)).await;
+                        continue;
+                    }
+
+                    serialised = &mut serialised[n..];
+                }
             }
             Err(err) => {
                 error!(

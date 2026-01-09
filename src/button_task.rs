@@ -1,11 +1,14 @@
 use defmt::*;
 use embassy_executor::Spawner;
+use embassy_stm32::Peri;
 use embassy_stm32::exti::ExtiInput;
-use embassy_stm32::gpio::{Pin, Pull};
-use embassy_stm32::{Peri, peripherals::*};
+use embassy_stm32::gpio::{ExtiPin, Pin, Pull};
+use embassy_stm32::interrupt::typelevel::Binding;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex as Cs;
-use embassy_sync::watch::{self, Sender, Watch};
+use embassy_sync::watch::{self, Watch};
 use embassy_time::{Duration, Timer};
+
+use crate::hal::Irqs;
 
 /// Max Number of receivers for a single button
 /// Hacky, but I'm not spending 10 more hours on the mental masturbation effort
@@ -21,7 +24,7 @@ pub enum ButtonMode {
 
 pub struct ButtonPeripherals<T>
 where
-    T: Pin,
+    T: Pin + embassy_stm32::gpio::ExtiPin,
 {
     pub pin: Peri<'static, T>,
     pub ch: Peri<'static, T::ExtiChannel>,
@@ -44,9 +47,15 @@ impl DebouncedButton {
         spawner: &Spawner,
     ) -> watch::Receiver<'static, Cs, bool, BUTTON_WATCH_SIZE>
     where
-        T: Pin,
+        T: Pin + embassy_stm32::gpio::ExtiPin,
+        Irqs: Binding<
+                <<T as ExtiPin>::ExtiChannel as embassy_stm32::exti::Channel>::IRQ,
+                embassy_stm32::exti::InterruptHandler<
+                    <<T as ExtiPin>::ExtiChannel as embassy_stm32::exti::Channel>::IRQ,
+                >,
+            >,
     {
-        let input = ExtiInput::new(p.pin, p.ch, Pull::Up);
+        let input = ExtiInput::new(p.pin, p.ch, Pull::Up, Irqs);
 
         let button = Self {
             input,
@@ -55,7 +64,7 @@ impl DebouncedButton {
             name,
         };
 
-        spawner.spawn(debounce_button(button)).unwrap();
+        spawner.spawn(unwrap!(debounce_button(button)));
 
         watch.receiver().unwrap()
     }

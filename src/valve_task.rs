@@ -1,7 +1,5 @@
 use defmt::*;
-use embassy_stm32::peripherals::TIM1;
-use embassy_stm32::timer::Channel;
-use embassy_stm32::{time::Hertz, timer::complementary_pwm::ComplementaryPwm};
+use embassy_stm32::time::Hertz;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch::Watch};
 
 use crate::hal::ValvePwm;
@@ -12,7 +10,7 @@ pub static VALVE_WATCH: Watch<Cs, PwmValveSetpoint, 1> = Watch::new();
 pub struct PwmValveSetpoint {
     /// Duty cycle percentage
     pub enable: bool,
-    pub frequency: Hertz,
+    pub frequency: f32, // in Hz
     pub systole_ratio: f32,
 }
 
@@ -20,7 +18,7 @@ impl PwmValveSetpoint {
     pub const fn get_safe() -> Self {
         Self {
             enable: false,
-            frequency: Hertz(1),
+            frequency: 1.0,
             systole_ratio: love_letter::SYSTOLE_RATIO_DEFAULT,
         }
     }
@@ -45,7 +43,8 @@ pub async fn control_valves(mut ventricle_pwm: ValvePwm) {
         if enable {
             debug!("VALVE ENABLED @ {}hz - {}sr", frequency, systole_ratio);
             ventricle_pwm.enable();
-            ventricle_pwm.set_frequency(frequency);
+            ventricle_pwm.set_frequency_low(frequency);
+            // ventricle_pwm.set_frequency(Hertz(frequency.min(1.0) as u32));
             ventricle_pwm.set_duty(systole_ratio_to_duty_cycle(
                 systole_ratio,
                 ventricle_pwm.get_max_duty(),
@@ -57,8 +56,8 @@ pub async fn control_valves(mut ventricle_pwm: ValvePwm) {
     }
 }
 
-fn systole_ratio_to_duty_cycle(systole_ratio: f32, max_duty: u16) -> u16 {
-    let dc = (systole_ratio.clamp(0.0, 1.0) * max_duty as f32) as u16;
+fn systole_ratio_to_duty_cycle(systole_ratio: f32, max_duty: u32) -> u32 {
+    let dc = (systole_ratio.clamp(0.0, 1.0) * max_duty as f32) as u32;
     debug!("VALVE: systole_ratio {} = duty cycle {}", systole_ratio, dc);
     dc
 }
