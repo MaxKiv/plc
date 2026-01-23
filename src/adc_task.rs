@@ -41,14 +41,13 @@ pub async fn read_adc(
         adc.read(
             dma.reborrow(),
             [
-                // TODO: tweak sample time to sensor signal impedance
-                (&mut regulator_pressure, SampleTime::CYCLES24_5),
-                (&mut systemic_flow, SampleTime::CYCLES24_5),
-                (&mut pulmonary_flow, SampleTime::CYCLES24_5),
-                (&mut systemic_preload_pressure, SampleTime::CYCLES24_5),
-                (&mut systemic_afterload_pressure, SampleTime::CYCLES24_5),
-                (&mut pulmonary_preload_pressure, SampleTime::CYCLES24_5),
-                (&mut pulmonary_afterload_pressure, SampleTime::CYCLES24_5),
+                (&mut regulator_pressure, SampleTime::CYCLES640_5),
+                (&mut systemic_flow, SampleTime::CYCLES640_5),
+                (&mut pulmonary_flow, SampleTime::CYCLES640_5),
+                (&mut systemic_preload_pressure, SampleTime::CYCLES640_5),
+                (&mut systemic_afterload_pressure, SampleTime::CYCLES640_5),
+                (&mut pulmonary_preload_pressure, SampleTime::CYCLES640_5),
+                (&mut pulmonary_afterload_pressure, SampleTime::CYCLES640_5),
             ]
             .into_iter(),
             read_buffer,
