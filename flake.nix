@@ -2,16 +2,13 @@
   description = "Development tooling for stm32";
 
   inputs = {
-    your-nixos-flake.url = "github:maxkiv/nix";
-    nixpkgs.follows = "your-nixos-flake/nixpkgs";
-    flake-utils.url = "github:numtide/flake-utils";
     fenix = {
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
 
-  # Outputs this flake produces
   outputs = {
     self,
     nixpkgs,
@@ -28,7 +25,7 @@
       toolchain = with fenix.packages.${system};
         fromToolchainFile {
           file = ./rust-toolchain.toml; # alternatively, dir = ./.;
-          sha256 = "sha256-kTal3lgsJhXeFaGMP+0LoBvf4KHtxFRnztgbkeptJmg=";
+          sha256 = "sha256-WInuoEKQQy+RPFLGMp0sLDxCzFKfiixAE6s1ssLYxcc=";
         };
     in {
       # Development shells provided by this flake, to use:
