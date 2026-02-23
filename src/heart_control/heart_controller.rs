@@ -1,5 +1,4 @@
 use defmt::*;
-use embassy_stm32::time::Hertz;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch};
 use love_letter::{AppState, HeartControllerSetpoint, Setpoint};
 use uom::si::{f32::Pressure, frequency::hertz, pressure::bar};
@@ -30,13 +29,16 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
         let setpoint = setpoint_rx.changed().await;
         debug!("HEART CONTROL: new setpoint {:?}", setpoint);
 
-        // Is the heart controller enabled?
-        if let Some(HeartControllerSetpoint {
+        // Destructure
+        let HeartControllerSetpoint {
+            enable,
             heart_rate,
             pressure,
             systole_ratio,
-        }) = setpoint.heart_controller_setpoint
-        {
+        } = setpoint.heart_controller_setpoint;
+
+        // Is the heart controller enabled?
+        if enable {
             // Heart is enabled: drive regulator and valves
             debug!(
                 "HEART CONTROL: Received setpoint ENABLE with {}hz and {}sr",
@@ -98,9 +100,4 @@ fn to_safe_heart_state(
         heart_pressure_tx,
     );
     control_ventricle_valves(SAFE_VALVE_SETPOINT, valve_tx);
-}
-
-/// Given the current set of measurements and previous state, what is our current state?
-fn calculate_appstate() -> AppState {
-    AppState::StandBy
 }

@@ -24,7 +24,7 @@ pub async fn serialise_reports(
         match love_letter::serialize_report(report.clone(), &mut buf) {
             Ok(mut serialised) => {
                 // Push serialised report into pipe for consumption in comms task
-                info!(
+                debug!(
                     "FRAMING - serialize_report: serialised report: {:?}",
                     serialised
                 );

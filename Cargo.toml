@@ -24,8 +24,8 @@ embedded-io-async = { version = "=0.7.0", features = ["defmt"] }
 static_cell = "2.1.1"
 thiserror = { version = "2.0.17", default-features = false }
 
-# love-letter = { path = "../love-letter" }
-love-letter = { git = "ssh://git@bitbucket.org/mechatronica/love_letter.git" }
+love-letter = { path = "../love-letter" }
+# love-letter = { git = "ssh://git@bitbucket.org/mechatronica/love_letter.git" }
 
 [patch.crates-io]
 # embassy-stm32       = { path = "/home/max/git/embassy-fork/embassy-stm32" }
