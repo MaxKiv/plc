@@ -15,7 +15,7 @@ pub async fn forward_reports(
     loop {
         // Get latest serialised report from the framing task
         let n = report_pipe_rx.read(&mut buf).await;
-        debug!("COMMS - forward_reports: writing {} bytes to UART", n);
+        // debug!("COMMS - forward_reports: writing {} bytes to UART", n);
         if let Err(err) = uart_tx.write(&buf[..n]).await {
             error!(
                 "COMMS - forward_reports: {} unable to write serialised report bytes {:?} to UART",
@@ -47,7 +47,7 @@ pub async fn receive_setpoints(
                 written += setpoint_pipe_tx.write(&buf[written..]).await;
             }
 
-            debug!("COMMS - receive_setpoints: write {} bytes to pipe", written);
+            // debug!("COMMS - receive_setpoints: write {} bytes to pipe", written);
         }
     }
 }

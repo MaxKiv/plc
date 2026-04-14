@@ -57,7 +57,7 @@ pub async fn control_valves(mut ventricle_pwm: ValvePwm) {
 }
 
 fn systole_ratio_to_duty_cycle(systole_ratio: f32, max_duty: u32) -> u32 {
-    let dc = (systole_ratio.clamp(0.0, 1.0) * max_duty as f32) as u32;
+    let dc = (systole_ratio.clamp(0.01, 0.99) * max_duty as f32) as u32;
     debug!("VALVE: systole_ratio {} = duty cycle {}", systole_ratio, dc);
     dc
 }
