@@ -27,6 +27,27 @@ Mockloops are essential for:
 - Collecting performance data before animal or clinical trials
 - Training medical professionals on the artificial heart device operation
 
+## Pinout
+
+| Pin  | Peripheral      | Function                     | Notes                |
+| ---- | --------------- | ---------------------------- | -------------------- |
+| PA0  | ADC1            | regulator_actual_pressure    | Analog input         |
+| PA1  | ADC1            | systemic_flow                | Analog input         |
+| PA2  | ADC1            | pulmonary_flow               | Analog input         |
+| PC0  | ADC1            | systemic_preload_pressure    | Analog input         |
+| PB0  | ADC1            | systemic_afterload_pressure  | Analog input         |
+| PB1  | ADC1            | pulmonary_preload_pressure   | Analog input         |
+| PB11 | ADC1            | pulmonary_afterload_pressure | Analog input         |
+| PA4  | DAC1 CH1        | heart_pressure_dac           | DAC output           |
+| PA5  | DAC1 CH2        | systemic_compliance_dac      | DAC output           |
+| PA6  | DAC2 CH1        | pulmonary_compliance_dac     | DAC output           |
+| PB9  | TIM17 PWM       | LED                          | Simple PWM output    |
+| PC2  | TIM1 PWM (CH1)  | valve_pwm                    | Complementary PWM    |
+| PB15 | TIM1 PWM (CH1N) | valve_pwm_n                  | Complementary output |
+| PB3  | USART2 TX       | UART transmit                | BufferedUart         |
+| PB4  | USART2 RX       | UART receive                 | BufferedUart         |
+| PC13 | EXTI13          | Button input                 | External interrupt   |
+
 ## Mockloop Architecture
 
 <img src="./data/mockloop_architecture.svg" alt="Mockloop Architecture" width="800"/>
