@@ -37,7 +37,7 @@ pub async fn receive_setpoints(
 
     loop {
         if uart_rx.read_exact(&mut buf).await.is_ok() {
-            info!(
+            trace!(
                 "COMMS - receive_setpoints: read {} bytes: {}",
                 BUF_SIZE, buf
             );
