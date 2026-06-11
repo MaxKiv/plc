@@ -26,9 +26,9 @@ pub async fn read_adc(
 
     // Task timekeeper
     let mut ticker = Ticker::every(SAMPLE_PERIOD);
-
     let read_buffer = unsafe { &mut DMA_BUF[..] };
 
+    // Setup ADCS
     let mut regulator_pressure = adc_channels.regulator_actual_pressure.degrade_adc();
     let mut systemic_flow = adc_channels.systemic_flow.degrade_adc();
     let mut pulmonary_flow = adc_channels.pulmonary_flow.degrade_adc();
@@ -38,6 +38,7 @@ pub async fn read_adc(
     let mut pulmonary_afterload_pressure = adc_channels.pulmonary_afterload_pressure.degrade_adc();
 
     loop {
+        // Read sensor values
         adc.read(
             dma.reborrow(),
             [
@@ -54,10 +55,9 @@ pub async fn read_adc(
         )
         .await;
 
-        let t = Instant::now();
-
+        // Collect into measurement frame
         let frame = AdcFrame {
-            timestamp: t.as_micros(),
+            timestamp: Instant::now().as_micros(),
             regulator_actual_pressure: read_buffer[0],
             systemic_flow: read_buffer[1],
             pulmonary_flow: read_buffer[2],
@@ -66,9 +66,9 @@ pub async fn read_adc(
             pulmonary_preload_pressure: read_buffer[5],
             pulmonary_afterload_pressure: read_buffer[6],
         };
-
         info!("ADC: measured frame: {:?}", frame);
 
+        // Send to anyone interested
         frame_out.send(frame);
 
         ticker.next().await;
