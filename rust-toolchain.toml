@@ -1,13 +1,19 @@
 [toolchain]
 # channel = "stable-2025-11-07"
-channel = "stable-2026-05-1"
+# channel = "stable-2026-05-1"
+channel = "nightly"
 # Keep components commented unless needed
-components = ["llvm-tools-preview", "rustfmt", "clippy"]
-
+components = [
+  "rust-src",
+  "llvm-tools-preview",
+  "rust-analyzer",
+  "clippy",
+  "rustfmt",
+]
 # Both targets: Cortex-M3 (F1 series) and Cortex-M4F (G4 series)
 targets = [
     "thumbv7m-none-eabi",     # For STM32F103C8
     "thumbv7em-none-eabihf"   # For STM32G474RE
 ]
 
-profile = "minimal"
+profile = "default"

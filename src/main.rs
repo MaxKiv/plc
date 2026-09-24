@@ -72,6 +72,8 @@ async fn main(spawner: Spawner) {
     )));
     spawner.spawn(unwrap!(adc_task::read_adc(
         hal.adc1,
+        hal.adc2,
+        hal.adc3,
         hal.dma,
         hal.adc_channels,
         ADC_WATCH.sender(),
@@ -126,12 +128,13 @@ fn configure_rcc(config: &mut Config) {
     // config.rcc.sys = Sysclk::HSI;
     config.rcc.sys = Sysclk::PLL1_R; // system clock comes from PLL1 R output
     config.rcc.pll = Some(embassy_stm32::rcc::Pll {
-        source: PllSource::HSI,    // 16 MHz internal
-        prediv: PllPreDiv::DIV1,   // 16 MHz in
-        mul: PllMul::MUL21,        // 16 * 21 = 336 MHz VCO
-        divp: None,                // not used
-        divq: None,                // not used
+        source: PllSource::HSI,  // 16 MHz internal
+        prediv: PllPreDiv::DIV1, // 16 MHz in
+        mul: PllMul::MUL21,      // 16 * 21 = 336 MHz VCO
+        divp: None,              // not used
+        divq: None,              // not used
         divr: Some(PllRDiv::DIV2), // 336 / 2 = 168 MHz SYSCLK
+                                 // NOTE: >= adc require 20 MHZ
     });
     config.rcc.hsi = true;
     config.rcc.hse = None;
@@ -149,7 +152,7 @@ fn configure_rcc(config: &mut Config) {
     };
     config.rcc.boost = true;
     config.rcc.mux.rtcsel = mux::Rtcsel::LSI;
-    config.rcc.mux.adc12sel = mux::Adcsel::SYS;
+    config.rcc.mux.adc12sel = mux::Adcsel::SYS; // Use System clock for adc, recommended for multi adc
     config.rcc.mux.adc345sel = mux::Adcsel::SYS;
     config.rcc.mux.clk48sel = mux::Clk48sel::HSI48;
 }

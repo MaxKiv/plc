@@ -27,17 +27,25 @@ bind_interrupts!(pub struct Irqs {
 static RX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 static TX_BUF: StaticCell<[u8; 2048]> = StaticCell::new();
 
-/// Number of adc inputs, this could be a fancy macro but I decided against the complexity
-pub const NUM_ADC_INPUTS: usize = 7;
+/// Number of adc inputs
+/// This info could probably be gathered from the type system somehow
+pub const NUM_INPUTS_ADC1: usize = 5;
+pub const NUM_INPUTS_ADC2: usize = 2;
+pub const NUM_INPUTS_ADC3: usize = 2;
 
+/// Adc channels used for analog signal acquisition
+/// These have been chosen such that all measurements:
+/// - Fall within a "fast" adc channel (ch 1-5) (¶10.3.8)
 pub struct AdcChannels {
-    pub regulator_actual_pressure: Peri<'static, PA0>,
-    pub systemic_flow: Peri<'static, PA1>,
-    pub pulmonary_flow: Peri<'static, PA2>,
-    pub systemic_preload_pressure: Peri<'static, PC0>,
-    pub systemic_afterload_pressure: Peri<'static, PB0>,
-    pub pulmonary_preload_pressure: Peri<'static, PB1>,
-    pub pulmonary_afterload_pressure: Peri<'static, PB11>,
+    pub heart_actual_pressure: Peri<'static, PA0>, // ADC1_1
+    pub systemic_compliance_actual_pressure: Peri<'static, PA1>, // ADC1_2
+    pub pulmonary_compliance_actual_pressure: Peri<'static, PA2>, // ADC1_3
+    pub systemic_flow: Peri<'static, PA3>,         // ADC1_4
+    pub pulmonary_flow: Peri<'static, PB14>,       // ADC1_5
+    pub systemic_preload_pressure: Peri<'static, PA7>, // ADC2_4
+    pub systemic_afterload_pressure: Peri<'static, PC4>, // ADC2_5
+    pub pulmonary_preload_pressure: Peri<'static, PB1>, // ADC3_1
+    pub pulmonary_afterload_pressure: Peri<'static, PB13>, // ADC3_5
 }
 
 /// Responsible for toggling the heart ventricle solenoid valves
@@ -77,6 +85,7 @@ impl ValvePwm {
 pub struct Hal {
     pub adc1: Adc<'static, ADC1>,
     pub adc2: Adc<'static, ADC2>,
+    pub adc3: Adc<'static, ADC3>,
     pub heart_pressure_dac: DacChannel<'static, DAC1, Ch1, Async>,
     pub systemic_compliance_dac: DacChannel<'static, DAC1, Ch2, Async>,
     pub pulmonary_compliance_dac: DacChannel<'static, DAC2, Ch1, Async>,
@@ -91,17 +100,20 @@ pub struct Hal {
 
 impl Hal {
     pub fn new(p: Peripherals) -> Self {
-        let mut adc1 = Adc::new(p.ADC1, AdcConfig::default());
+        let adc1 = Adc::new(p.ADC1, AdcConfig::default());
         let adc2 = Adc::new(p.ADC2, AdcConfig::default());
+        let adc3 = Adc::new(p.ADC3, AdcConfig::default());
 
         let adc_channels = AdcChannels {
-            regulator_actual_pressure: p.PA0,
-            systemic_flow: p.PA1,
-            pulmonary_flow: p.PA2,
-            systemic_preload_pressure: p.PC0,
-            systemic_afterload_pressure: p.PB0,
+            heart_actual_pressure: p.PA0,
+            systemic_compliance_actual_pressure: p.PA1,
+            pulmonary_compliance_actual_pressure: p.PA2,
+            systemic_flow: p.PA3,
+            pulmonary_flow: p.PB14,
+            systemic_preload_pressure: p.PA7,
+            systemic_afterload_pressure: p.PC4,
             pulmonary_preload_pressure: p.PB1,
-            pulmonary_afterload_pressure: p.PB11,
+            pulmonary_afterload_pressure: p.PB13,
         };
 
         let dma = p.DMA1_CH1;
@@ -164,6 +176,7 @@ impl Hal {
         Self {
             adc1,
             adc2,
+            adc3,
             heart_pressure_dac,
             systemic_compliance_dac,
             pulmonary_compliance_dac,
