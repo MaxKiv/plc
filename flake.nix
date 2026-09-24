@@ -25,7 +25,7 @@
       toolchain = with fenix.packages.${system};
         fromToolchainFile {
           file = ./rust-toolchain.toml; # alternatively, dir = ./.;
-          sha256 = "sha256-p8h3Sl/YRByZfZTAKXdsvF6xEenXKrXSVvpphmZENH4=";
+          sha256 = "sha256-JK3ESruwW3jHW5W7V1N8h6SstSr9dAseAI88nhU5cCM=";
         };
     in {
       # Development shells provided by this flake, to use:
@@ -35,7 +35,7 @@
           nil # Nix LSP
           alejandra # Nix Formatter
           toolchain # Our Rust toolchain
-          rust-analyzer # Rust LSP
+          # rust-analyzer # Rust LSP
           probe-rs-tools # probe-rs
           gcc-arm-embedded # arm-none-eabi-gdb
           openocd # gdb server

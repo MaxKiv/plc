@@ -17,6 +17,10 @@ pub use stm32g474re::Hal;
 #[cfg(feature = "stm32g474re")]
 pub use stm32g474re::Irqs;
 #[cfg(feature = "stm32g474re")]
-pub use stm32g474re::NUM_ADC_INPUTS;
+pub use stm32g474re::NUM_INPUTS_ADC1;
+#[cfg(feature = "stm32g474re")]
+pub use stm32g474re::NUM_INPUTS_ADC2;
+#[cfg(feature = "stm32g474re")]
+pub use stm32g474re::NUM_INPUTS_ADC3;
 #[cfg(feature = "stm32g474re")]
 pub use stm32g474re::ValvePwm;
