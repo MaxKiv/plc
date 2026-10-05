@@ -4,6 +4,7 @@ use love_letter::{AppState, HeartControllerSetpoint, Setpoint};
 use uom::si::{f32::Pressure, frequency::hertz, pressure::bar};
 
 use crate::{
+    APPSTATE_WATCH,
     dac::dac_task::DAC_HEART_PRESSURE_WATCH,
     valve_task::{PwmValveSetpoint, VALVE_WATCH},
 };
@@ -16,7 +17,7 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
     let regulator_pressure_tx = DAC_HEART_PRESSURE_WATCH.sender();
     let valve_tx = VALVE_WATCH.sender();
 
-    let tx = crate::APPSTATE_WATCH.sender();
+    let appstate_tx = crate::APPSTATE_WATCH.sender();
 
     info!("HEART CONTROL: Moving mockloop into safe state");
     to_safe_heart_state(&regulator_pressure_tx, &valve_tx);
@@ -52,7 +53,7 @@ pub async fn heart_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs, Se
             };
 
             // Indicate system running
-            tx.send(AppState::Running(valve_setpoint.frequency));
+            appstate_tx.send(AppState::Running(valve_setpoint.frequency));
 
             // Drive actuators
             control_pressure_regulator(pressure, &regulator_pressure_tx);

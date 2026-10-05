@@ -1,7 +1,10 @@
 use defmt::{debug, info};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex as Cs, watch};
 use love_letter::{MockloopSetpoint, Setpoint};
-use uom::si::{f32::Pressure, pressure::bar};
+use uom::si::{
+    f32::Pressure,
+    pressure::{bar, millibar},
+};
 
 use crate::{
     dac::dac_task::{DAC_PULMONARY_COMPLIANCE_WATCH, DAC_SYSTEMIC_COMPLIANCE_WATCH},
@@ -40,19 +43,21 @@ pub async fn mockloop_control_loop(mut setpoint_rx: watch::Receiver<'static, Cs,
             // Convert raw compliance setpoint into pressure setpoint for the compliance chamber
             // pressure regulators
             let pulmonary_pressure_setpoint =
-                ComplianceSetpoint::from_raw_compliance(pulmonary_afterload_compliance);
+                ComplianceSetpoint::from_pressure_setpoint(pulmonary_afterload_compliance);
             let systemic_pressure_setpoint =
-                ComplianceSetpoint::from_raw_compliance(systemic_afterload_compliance);
+                ComplianceSetpoint::from_pressure_setpoint(systemic_afterload_compliance);
 
             debug!(
-                "LOOP CONTROL: ENABLED -> Converted raw systemic compliance setpoint {} into pressure setpoint {}bar",
-                systemic_afterload_compliance,
-                systemic_pressure_setpoint.pressure.get::<bar>()
+                "LOOP CONTROL: ENABLED -> Converted raw systemic compliance setpoint {} into
+                pressure setpoint {}mbar",
+                systemic_afterload_compliance.get::<millibar>(),
+                systemic_pressure_setpoint.pressure.get::<millibar>()
             );
             debug!(
-                "LOOP CONTROL: ENABLED -> Converted raw pulmonary compliance setpoint {} into pressure setpoint {}bar",
-                pulmonary_afterload_compliance,
-                pulmonary_pressure_setpoint.pressure.get::<bar>()
+                "LOOP CONTROL: ENABLED -> Converted raw pulmonary compliance setpoint {} into
+                pressure setpoint {}mbar",
+                pulmonary_afterload_compliance.get::<millibar>(),
+                pulmonary_pressure_setpoint.pressure.get::<millibar>()
             );
 
             let systemic_resistance_setpoint =
